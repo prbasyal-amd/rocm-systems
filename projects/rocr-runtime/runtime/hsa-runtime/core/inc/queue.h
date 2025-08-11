@@ -55,6 +55,7 @@
 #include "core/inc/memory_region.h"
 #include "core/util/utils.h"
 #include "inc/amd_hsa_queue.h"
+#include "inc/amd_hsa_pm4_queue.h"
 #include "inc/hsa_ext_amd.h"
 #include "hsakmt/hsakmt.h"
 
@@ -159,6 +160,7 @@ class Queue;
 struct SharedQueue {
   union QueueDescriptor {
     amd_queue_v2_t compute_aql_queue;
+    amd_pm4_queue_t compute_pm4_queue;
   } queue_descriptor;
   Queue* core_queue;
 };
@@ -182,9 +184,15 @@ class Queue : public Checked<0xFA3906A679F9DB49> {
         pcie_write_ordering_(pcie_write_ordering) {
     // queue_descriptor_ must be initialized before passing the this
     // pointer to Convert.
-    std::memset(&shared_queue->queue_descriptor.compute_aql_queue, 0,
-                sizeof(shared_queue->queue_descriptor));
-    queue_descriptor_ = &shared_queue->queue_descriptor.compute_aql_queue;
+    if (queue_flags & HSA_AMD_QUEUE_CREATE_HSA_QUEUE_COMPUTE) {
+      std::memset(&shared_queue->queue_descriptor.compute_pm4_queue, 0,
+                  sizeof(shared_queue->queue_descriptor.compute_pm4_queue));
+      queue_descriptor_ = &shared_queue->queue_descriptor.compute_pm4_queue;
+    } else {
+      std::memset(&shared_queue->queue_descriptor.compute_aql_queue, 0,
+                  sizeof(shared_queue->queue_descriptor.compute_aql_queue));
+      queue_descriptor_ = &shared_queue->queue_descriptor.compute_aql_queue;
+    }
     public_handle_ = Convert(this);
     shared_queue->core_queue = this;
   }
@@ -377,7 +385,7 @@ class Queue : public Checked<0xFA3906A679F9DB49> {
   static void DefaultErrorHandler(hsa_status_t status, hsa_queue_t* source, void* data);
 
   /// @brief Holds the variants of the queue descriptor struct.
-  std::variant<amd_queue_v2_t*> queue_descriptor_;
+  std::variant<amd_queue_v2_t*, amd_pm4_queue_t*> queue_descriptor_;
 
   hsa_queue_t* public_handle() const { return public_handle_; }
 

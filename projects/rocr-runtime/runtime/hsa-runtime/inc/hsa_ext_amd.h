@@ -2872,6 +2872,14 @@ typedef enum {
    * operations.
    */
   HSA_AMD_QUEUE_CREATE_DEVICE_MEM_QUEUE_DESCRIPTOR = (1 << 1),
+  /**
+   * Create a user-mode queue of type HSA_QUEUE_COMPUTE_PM4. The default
+   * queue type when this flag is not set is HSA_QUEUE_COMPUTE_AQL.
+   *
+   * @warning This is an experimental flag and should not be used in
+   * production at this time.
+   */
+  HSA_AMD_QUEUE_CREATE_HSA_QUEUE_COMPUTE_PM4 = (1 << 2)
 } hsa_amd_queue_create_flag_t;
 
 typedef uint32_t hsa_amd_queue_create_flags_type32_t;
