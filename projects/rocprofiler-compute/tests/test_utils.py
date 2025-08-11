@@ -9321,3 +9321,49 @@ def test_set_parser():
 
     assert "compute_thruput_util" in result
     assert result["compute_thruput_util"]["title"] == "Compute Throughput Utilization"
+
+
+# =============================================================================
+# TESTS FOR MODELESS COMMAND LINE OPTIONS
+# =============================================================================
+
+def test_list_metrics(
+    binary_handler_analyze_rocprof_compute
+):
+    return_code = binary_handler_analyze_rocprof_compute(['--list-metrics', 'gfx90a'])
+    assert return_code == 0
+
+
+def test_list_metrics_with_filter_blocks(
+    binary_handler_analyze_rocprof_compute
+):
+    return_code = binary_handler_analyze_rocprof_compute(
+        ['--list-metrics', 'gfx90a', '--filter-blocks', '2.1']
+    )
+    assert return_code == 0
+
+    return_code = binary_handler_analyze_rocprof_compute(
+        ['--list-metrics', 'gfx90a', '--filter-blocks', '7.1', '3']
+    )
+    assert return_code == 0
+
+
+def test_supported_metrics(
+    binary_handler_analyze_rocprof_compute
+):
+    return_code = binary_handler_analyze_rocprof_compute(['--list-supported-metrics'])
+    assert return_code == 0
+
+
+def test_supported_metrics_with_filter_blocks(
+    binary_handler_analyze_rocprof_compute
+):
+    return_code = binary_handler_analyze_rocprof_compute(
+        ['--list-supported-metrics', '--filter-blocks', '5']
+    )
+    assert return_code == 0
+
+    return_code = binary_handler_analyze_rocprof_compute(
+        ['--list-supported-metrics', '--filter-blocks', '4', '9.1']
+    )
+    assert return_code == 0
