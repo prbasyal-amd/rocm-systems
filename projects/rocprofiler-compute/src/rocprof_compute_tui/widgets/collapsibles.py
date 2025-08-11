@@ -88,24 +88,18 @@ def get_tui_style_from_path(dfs: Dict[str, Any], path: List[str]) -> Optional[st
 
 def create_widget_from_data(df: pd.DataFrame, tui_style: Optional[str] = None) -> Any:
     if df is not None and not df.empty:
-        match tui_style:  # noqa
-            case None:
-                return create_table(df)
-
-            case "mem_chart":
-                return MemoryChart(df)
-
-            case "simple_bar":
-                return SimpleBar(df)
-
-            case "simple_box":
-                return SimpleBox(df)
-
-            case "simple_multiple_bar":
-                return SimpleMultiBar(df)
-
-            case _:
-                return Label(f"Unknown display type: {tui_style}")
+        if tui_style ==  None:
+            return create_table(df)
+        elif tui_style ==  "mem_chart":
+            return MemoryChart(df)
+        elif tui_style ==  "simple_bar":
+            return SimpleBar(df)
+        elif tui_style == "simple_box":
+            return SimpleBox(df)
+        elif tui_style == "simple_multiple_bar":
+            return SimpleMultiBar(df)
+        else:
+            return Label(f"Unknown display type: {tui_style}")
     else:
         return Label(f"Data not available for display in {tui_style}.")
 

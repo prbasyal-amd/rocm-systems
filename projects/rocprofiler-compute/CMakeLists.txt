@@ -88,11 +88,6 @@ if(CHECK_PYTHON_DEPS)
         if(${ARGV0} STREQUAL "pyyaml")
             set(PACKAGE "yaml")
         endif()
-        # Skip check for textual_fspicker
-        if(${package} STREQUAL "textual_fspicker")
-            message(STATUS "Skipping check for textual_fspicker")
-            return()
-        endif()
         execute_process(
             COMMAND ${Python3_EXECUTABLE} -c "import ${PACKAGE}"
             OUTPUT_QUIET ERROR_QUIET
