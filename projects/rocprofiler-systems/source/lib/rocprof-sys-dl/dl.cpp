@@ -522,6 +522,13 @@ get_active()
 }
 
 auto&
+get_user_api_active()
+{
+    static bool* _v = new bool{ false };
+    return *_v;
+}
+
+auto&
 get_enabled()
 {
     static auto* _v = new std::atomic<bool>{ get_env("ROCPROFSYS_INIT_ENABLED", true) };
@@ -807,12 +814,14 @@ extern "C"
     int rocprofsys_user_start_trace_dl(void)
     {
         dl::get_enabled().store(true);
+        dl::get_user_api_active() = true;
         return rocprofsys_user_start_thread_trace_dl();
     }
 
     int rocprofsys_user_stop_trace_dl(void)
     {
         dl::get_enabled().store(false);
+        dl::get_user_api_active() = false;
         return rocprofsys_user_stop_thread_trace_dl();
     }
 
@@ -830,13 +839,13 @@ extern "C"
 
     int rocprofsys_user_push_region_dl(const char* name)
     {
-        if(!dl::get_active()) return 0;
+        if(!dl::get_active() && !dl::get_user_api_active()) return 0;
         return ROCPROFSYS_DL_INVOKE(get_indirect().rocprofsys_push_region_f, name);
     }
 
     int rocprofsys_user_pop_region_dl(const char* name)
     {
-        if(!dl::get_active()) return 0;
+        if(!dl::get_active() && !dl::get_user_api_active()) return 0;
         return ROCPROFSYS_DL_INVOKE(get_indirect().rocprofsys_pop_region_f, name);
     }
 
@@ -850,7 +859,7 @@ extern "C"
                                                  rocprofsys_annotation_t* _annotations,
                                                  size_t _annotation_count)
     {
-        if(!dl::get_active()) return 0;
+        if(!dl::get_active() && !dl::get_user_api_active()) return 0;
         return ROCPROFSYS_DL_INVOKE(get_indirect().rocprofsys_push_category_region_f,
                                     ROCPROFSYS_CATEGORY_USER, name, _annotations,
                                     _annotation_count);
@@ -860,7 +869,7 @@ extern "C"
                                                 rocprofsys_annotation_t* _annotations,
                                                 size_t _annotation_count)
     {
-        if(!dl::get_active()) return 0;
+        if(!dl::get_active() && !dl::get_user_api_active()) return 0;
         return ROCPROFSYS_DL_INVOKE(get_indirect().rocprofsys_pop_category_region_f,
                                     ROCPROFSYS_CATEGORY_USER, name, _annotations,
                                     _annotation_count);
