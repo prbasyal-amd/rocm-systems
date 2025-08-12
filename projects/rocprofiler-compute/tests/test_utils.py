@@ -9328,42 +9328,100 @@ def test_set_parser():
 # =============================================================================
 
 def test_list_metrics(
-    binary_handler_analyze_rocprof_compute
+    binary_handler_analyze_rocprof_compute, capsys
 ):
     return_code = binary_handler_analyze_rocprof_compute(['--list-metrics', 'gfx90a'])
     assert return_code == 0
 
+    # Test output
+    output = capsys.readouterr().out
+    assert "6 -> Workgroup Manager (SPI)" in output
+    assert "5.2 -> Command processor packet processor (CPC)" in output
+
 
 def test_list_metrics_with_filter_blocks(
-    binary_handler_analyze_rocprof_compute
+    binary_handler_analyze_rocprof_compute, capsys
 ):
     return_code = binary_handler_analyze_rocprof_compute(
         ['--list-metrics', 'gfx90a', '--filter-blocks', '2.1']
     )
     assert return_code == 0
 
+    # Test output
+    output = capsys.readouterr().out
+    assert "2.1 -> System Speed-of-Light" in output
+    assert "11 -> Compute Units - Compute Pipeline" not in output
+    assert "15.2 -> Instruction counts" not in output
+
     return_code = binary_handler_analyze_rocprof_compute(
         ['--list-metrics', 'gfx90a', '--filter-blocks', '7.1', '3']
     )
     assert return_code == 0
 
+    # Test output
+    output = capsys.readouterr().out
+    assert "7 -> Wavefront" in output
+    assert "7.1 -> Wavefront Launch Stats" in output
+    assert "7.1.7 -> SGPRs" in output
+    assert "3 -> Memory Chart" in output
+    assert "3.1.8 -> GWS" in output
+    assert "12.1 -> LDS Speed-of-Light" not in output
+    assert "14 -> Scalar L1 Data Cache" not in output
+
 
 def test_supported_metrics(
-    binary_handler_analyze_rocprof_compute
+    binary_handler_analyze_rocprof_compute, capsys
 ):
     return_code = binary_handler_analyze_rocprof_compute(['--list-supported-metrics'])
     assert return_code == 0
 
+    # Test output
+    output = capsys.readouterr().out
+    assert "0 -> Top Stats" in output
+    assert "1 -> System Info" in output
+
 
 def test_supported_metrics_with_filter_blocks(
-    binary_handler_analyze_rocprof_compute
+    binary_handler_analyze_rocprof_compute, capsys
 ):
     return_code = binary_handler_analyze_rocprof_compute(
-        ['--list-supported-metrics', '--filter-blocks', '5']
+        ['--list-supported-metrics', '--filter-blocks', '2']
     )
     assert return_code == 0
 
+    # Test output
+    output = capsys.readouterr().out
+    assert "0 -> Top Stats" not in output
+    assert "1 -> System Info" not in output
+    assert "2 ->" in output
+
     return_code = binary_handler_analyze_rocprof_compute(
-        ['--list-supported-metrics', '--filter-blocks', '4', '9.1']
+        ['--list-supported-metrics', '--filter-blocks', '3', '7.1']
+    )
+    assert return_code == 0
+
+    # Test output
+    output = capsys.readouterr().out
+    assert "0 -> Top Stats" not in output
+    assert "1 -> System Info" not in output
+    assert "3 ->" in output
+    assert "3.1 ->" in output
+    assert "7 ->" in output
+    assert "7.1 ->" in output
+    assert "7.1.1 ->" in output
+    assert "7.2 ->" not in output
+    assert "7.2.1 ->" not in output
+
+
+def test_config_path(
+    binary_handler_analyze_rocprof_compute
+):
+    return_code = binary_handler_analyze_rocprof_compute(
+        ['--config-path', 'some/path/']
+    )
+    assert return_code == 1
+
+    return_code = binary_handler_analyze_rocprof_compute(
+        ['--config-path', 'some/path/', '--list-metrics', 'gfx90a']
     )
     assert return_code == 0
