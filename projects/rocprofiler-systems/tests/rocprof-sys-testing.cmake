@@ -815,7 +815,7 @@ function(ROCPROFILER_SYSTEMS_ADD_CAUSAL_TEST)
 
     cmake_parse_arguments(
         TEST
-        "SKIP_BASELINE"
+        "SKIP_BASELINE;DISABLE_DOUBLE_HYPHEN"
         "NAME;TARGET;CAUSAL_MODE;CAUSAL_TIMEOUT;CAUSAL_VALIDATE_TIMEOUT"
         "${_KWARGS}"
         ${ARGN}
@@ -839,15 +839,21 @@ function(ROCPROFILER_SYSTEMS_ADD_CAUSAL_TEST)
         set(TEST_CAUSAL_FAIL_REGEX "(${ROCPROFSYS_ABORT_FAIL_REGEX})")
     endif()
 
-    if(TARGET ${TEST_TARGET})
-        set(COMMAND_PREFIX
-            $<TARGET_FILE:rocprofiler-systems-causal>
-            --reset
-            -m
-            ${TEST_CAUSAL_MODE}
-            ${TEST_CAUSAL_ARGS}
-            --
-        )
+     if(TARGET ${TEST_TARGET})
+        if(TEST_DISABLE_DOUBLE_HYPHEN)
+            set(COMMAND_PREFIX
+                $<TARGET_FILE:rocprofiler-systems-causal>
+            )
+        else()
+            set(COMMAND_PREFIX
+                $<TARGET_FILE:rocprofiler-systems-causal>
+                --reset
+                -m
+                ${TEST_CAUSAL_MODE}
+                ${TEST_CAUSAL_ARGS}
+                --
+            )
+        endif()
 
         if(NOT TEST_SKIP_BASELINE)
             add_test(
@@ -919,7 +925,7 @@ function(ROCPROFILER_SYSTEMS_ADD_CAUSAL_TEST)
                 "ROCPROFSYS_CI=ON"
                 "ROCPROFSYS_USE_PID=OFF"
                 "ROCPROFSYS_THREAD_POOL_SIZE=0"
-                "ROCPROFSYS_VERBOSE=1"
+            #    "ROCPROFSYS_VERBOSE=1"
                 "ROCPROFSYS_DL_VERBOSE=0"
                 "ROCPROFSYS_DEBUG_SETTINGS=0"
                 "${TEST_ENVIRONMENT}"

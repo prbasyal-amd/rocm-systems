@@ -37,6 +37,28 @@ rocprofiler_systems_add_causal_test(
 
 rocprofiler_systems_add_causal_test(
     SKIP_BASELINE
+    NAME cpu-rocprofsys-func-verbose
+    TARGET causal-cpu-rocprofsys
+    RUN_ARGS 70 10 432525 400000000
+    CAUSAL_MODE "function"     
+    CAUSAL_PASS_REGEX
+        "Starting causal experiment #1(.*)causal/experiments.json(.*)causal/experiments.coz"
+    ENVIRONMENT "ROCPROFSYS_VERBOSE=3"
+)
+
+rocprofiler_systems_add_causal_test(
+    SKIP_BASELINE
+    DISABLE_DOUBLE_HYPHEN 
+    NAME causal-no-double-hyphen
+    TARGET causal-cpu-rocprofsys
+    RUN_ARGS 70 10 432525 400000000
+    CAUSAL_MODE "function"
+      CAUSAL_PASS_REGEX
+        "Starting causal experiment #1(.*)causal/experiments.json(.*)causal/experiments.coz"
+    ENVIRONMENT "ROCPROFSYS_VERBOSE=1"
+)
+rocprofiler_systems_add_causal_test(
+    SKIP_BASELINE
     NAME cpu-rocprofsys-func-ndebug
     TARGET causal-cpu-rocprofsys-ndebug
     RUN_ARGS 70 10 432525 1000000000
