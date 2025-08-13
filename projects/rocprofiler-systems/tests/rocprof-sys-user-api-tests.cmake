@@ -52,3 +52,16 @@ rocprofiler_systems_add_test(
     BASELINE_FAIL_REGEX "Pushing custom region"
     REWRITE_FAIL_REGEX "0 instrumented loops in procedure"
 )
+
+add_test(
+    NAME user-api-coverage
+    COMMAND $<TARGET_FILE:user-api-coverage>
+)
+
+set_tests_properties(
+    user-api-coverage
+    PROPERTIES
+        LABELS "coverage"
+        ENVIRONMENT "${_base_environment}"
+        PASS_REGULAR_EXPRESSION "All coverage tests passed"
+)
