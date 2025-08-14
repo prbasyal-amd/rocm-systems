@@ -719,44 +719,11 @@ hsa_status_t hsa_queue_create(
     void (*callback)(hsa_status_t status, hsa_queue_t* source, void* data),
     void* data, uint32_t private_segment_size, uint32_t group_segment_size,
     hsa_queue_t** queue) {
-  TRY;
-  IS_OPEN();
-
-  if ((queue == nullptr) || (size == 0) || (!IsPowerOfTwo(size)) ||
-      (type > HSA_QUEUE_TYPE_COOPERATIVE)) {
-    return HSA_STATUS_ERROR_INVALID_ARGUMENT;
-  }
-
-  core::Agent* agent = core::Agent::Convert(agent_handle);
-  IS_VALID(agent);
-
-  hsa_queue_type32_t agent_queue_type = HSA_QUEUE_TYPE_MULTI;
-  hsa_status_t status =
-      agent->GetInfo(HSA_AGENT_INFO_QUEUE_TYPE, &agent_queue_type);
-  assert(HSA_STATUS_SUCCESS == status);
-
-  if ((agent_queue_type == HSA_QUEUE_TYPE_SINGLE) &&
-      (type != HSA_QUEUE_TYPE_SINGLE)) {
-    return HSA_STATUS_ERROR_INVALID_QUEUE_CREATION;
-  }
-
-  if (callback == nullptr) callback = core::Queue::DefaultErrorHandler;
-
   uint64_t queue_create_flags = 0;
-
   if (core::Runtime::runtime_singleton_->flag().dev_mem_queue_buf())
     queue_create_flags = HSA_AMD_QUEUE_CREATE_DEVICE_MEM_RING_BUF;
-
-  core::Queue* cmd_queue = nullptr;
-  status = agent->QueueCreate(size, type, queue_create_flags, callback, data, private_segment_size,
-                              group_segment_size, &cmd_queue);
-  if (status != HSA_STATUS_SUCCESS) return status;
-
-  assert(cmd_queue != nullptr && "Queue not returned but status was success.\n");
-  *queue = core::Queue::Convert(cmd_queue);
-  return status;
-
-  CATCH;
+  return hsa_amd_queue_create(agent_handle, size, type, callback, data, private_segment_size,
+                              group_segment_size, queue, queue_create_flags);
 }
 
 hsa_status_t hsa_soft_queue_create(hsa_region_t region, uint32_t size,

@@ -517,7 +517,7 @@ void AqlQueue::AllocRegisteredRingBuffer(uint32_t queue_size_pkts) {
                                 "Trying to allocate an AQL ring buffer in device memory without "
                                 "large BAR PCIe enabled.");
     }
-    ring_buf_ = agent_->coarsegrain_allocator()(
+    ring_buf_ = agent_->finegrain_allocator()(
         ring_buf_alloc_bytes_,
         core::MemoryRegion::AllocateExecutable | core::MemoryRegion::AllocateUncached);
   } else {
@@ -532,7 +532,7 @@ void AqlQueue::AllocRegisteredRingBuffer(uint32_t queue_size_pkts) {
 void AqlQueue::FreeQueueMemory() {
   if (shared_queue_) {
     if (IsDeviceMemQueueDescriptor())
-      agent_->coarsegrain_deallocator()(shared_queue_);
+      agent_->finegrain_deallocator()(shared_queue_);
     else
       core::Runtime::runtime_singleton_->system_deallocator()(shared_queue_);
 
@@ -541,7 +541,7 @@ void AqlQueue::FreeQueueMemory() {
 
   if (ring_buf_) {
     if (IsDeviceMemRingBuf()) {
-      agent_->coarsegrain_deallocator()(ring_buf_);
+      agent_->finegrain_deallocator()(ring_buf_);
     } else {
       agent_->system_deallocator()(ring_buf_);
     }

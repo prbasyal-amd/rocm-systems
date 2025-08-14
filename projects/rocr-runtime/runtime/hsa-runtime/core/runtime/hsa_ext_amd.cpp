@@ -1200,6 +1200,45 @@ hsa_status_t hsa_amd_queue_set_priority(hsa_queue_t* queue,
   CATCH;
 }
 
+hsa_status_t hsa_amd_queue_create(hsa_agent_t agent_handle, uint32_t size, hsa_queue_type32_t type,
+                                  void (*callback)(hsa_status_t status, hsa_queue_t* source,
+                                                   void* data),
+                                  void* data, uint32_t private_segment_size,
+                                  uint32_t group_segment_size, hsa_queue_t** queue,
+                                  hsa_amd_queue_create_flags_type32_t flags) {
+  TRY;
+  IS_OPEN();
+
+  if ((queue == nullptr) || (size == 0) || (!IsPowerOfTwo(size)) ||
+      (type > HSA_QUEUE_TYPE_COOPERATIVE)) {
+    return HSA_STATUS_ERROR_INVALID_ARGUMENT;
+  }
+
+  core::Agent* agent = core::Agent::Convert(agent_handle);
+  IS_VALID(agent);
+
+  hsa_queue_type32_t agent_queue_type = HSA_QUEUE_TYPE_MULTI;
+  hsa_status_t status = agent->GetInfo(HSA_AGENT_INFO_QUEUE_TYPE, &agent_queue_type);
+  assert(HSA_STATUS_SUCCESS == status);
+
+  if ((agent_queue_type == HSA_QUEUE_TYPE_SINGLE) && (type != HSA_QUEUE_TYPE_SINGLE)) {
+    return HSA_STATUS_ERROR_INVALID_QUEUE_CREATION;
+  }
+
+  if (callback == nullptr) callback = core::Queue::DefaultErrorHandler;
+
+  core::Queue* cmd_queue = nullptr;
+  status = agent->QueueCreate(size, type, flags, callback, data, private_segment_size,
+                              group_segment_size, &cmd_queue);
+  if (status != HSA_STATUS_SUCCESS) return status;
+
+  assert(cmd_queue != nullptr && "Queue not returned but status was success.\n");
+  *queue = core::Queue::Convert(cmd_queue);
+  return status;
+
+  CATCH;
+}
+
 hsa_status_t hsa_amd_register_deallocation_callback(void* ptr,
                                                     hsa_amd_deallocation_callback_t callback,
                                                     void* user_data) {

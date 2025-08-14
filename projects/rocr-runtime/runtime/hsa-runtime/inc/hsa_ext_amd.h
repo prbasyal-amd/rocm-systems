@@ -63,9 +63,10 @@
  * - 1.10 - hsa_amd_vmem_address_reserve: HSA_AMD_VMEM_ADDRESS_NO_REGISTER
  * - 1.11 - hsa_amd_agent_info_t: HSA_AMD_AGENT_INFO_CLOCK_COUNTERS
  * - 1.12 - hsa_amd_pointer_info: HSA_EXT_POINTER_TYPE_HSA_VMEM and HSA_EXT_POINTER_TYPE_RESERVED_ADDR
+ * - 1.13 - hsa_amd_queue_create API
  */
 #define HSA_AMD_INTERFACE_VERSION_MAJOR 1
-#define HSA_AMD_INTERFACE_VERSION_MINOR 12
+#define HSA_AMD_INTERFACE_VERSION_MINOR 13
 
 #ifdef __cplusplus
 extern "C" {
@@ -2872,6 +2873,88 @@ typedef enum {
    */
   HSA_AMD_QUEUE_CREATE_DEVICE_MEM_QUEUE_DESCRIPTOR = (1 << 1),
 } hsa_amd_queue_create_flag_t;
+
+typedef uint32_t hsa_amd_queue_create_flags_type32_t;
+
+/**
+ * @brief Create a user mode queue with flags specifying the queue's attributes.
+ *
+ * @details The HSA runtime creates the queue structure, the underlying packet
+ * buffer, the completion signal, and the write and read indexes. The initial
+ * value of the write and read indexes is 0. The type of every packet in the
+ * buffer is initialized to ::HSA_PACKET_TYPE_INVALID.
+ *
+ * The application should only rely on the error code returned to determine if
+ * the queue is valid.
+ *
+ * @param[in] agent Agent where to create the queue.
+ *
+ * @param[in] size Number of packets the queue is expected to
+ * hold. Must be a power of 2 between 1 and the value of
+ * ::HSA_AGENT_INFO_QUEUE_MAX_SIZE in @p agent. The size of the newly
+ * created queue is the maximum of @p size and the value of
+ * ::HSA_AGENT_INFO_QUEUE_MIN_SIZE in @p agent.
+ *
+ * @param[in] type Type of the queue, a bitwise OR of hsa_queue_type_t values.
+ * If the value of ::HSA_AGENT_INFO_QUEUE_TYPE in @p agent is ::HSA_QUEUE_TYPE_SINGLE,
+ * then @p type must also be ::HSA_QUEUE_TYPE_SINGLE.
+ *
+ * @param[in] callback Callback invoked by the HSA runtime for every
+ * asynchronous event related to the newly created queue. May be NULL. The HSA
+ * runtime passes three arguments to the callback: a code identifying the event
+ * that triggered the invocation, a pointer to the queue where the event
+ * originated, and the application data.
+ *
+ * @param[in] data Application data that is passed to @p callback on every
+ * iteration. May be NULL.
+ *
+ * @param[in] private_segment_size Hint indicating the maximum
+ * expected private segment usage per work-item, in bytes. There may
+ * be performance degradation if the application places a kernel
+ * dispatch packet in the queue and the corresponding private segment
+ * usage exceeds @p private_segment_size. If the application does not
+ * want to specify any particular value for this argument, @p
+ * private_segment_size must be UINT32_MAX. If the queue does not
+ * support kernel dispatch packets, this argument is ignored.
+ *
+ * @param[in] group_segment_size Hint indicating the maximum expected
+ * group segment usage per work-group, in bytes. There may be
+ * performance degradation if the application places a kernel dispatch
+ * packet in the queue and the corresponding group segment usage
+ * exceeds @p group_segment_size. If the application does not want to
+ * specify any particular value for this argument, @p
+ * group_segment_size must be UINT32_MAX. If the queue does not
+ * support kernel dispatch packets, this argument is ignored.
+ *
+ * @param[out] queue Memory location where the HSA runtime stores a pointer to
+ * the newly created queue.
+ *
+ * @param[in] flags Queue creation flags that specify how to set queue attributes.
+ * The list of queue attributes is defined in hsa_amd_queue_create_flag_t.
+ *
+ * @retval ::HSA_STATUS_SUCCESS The function has been executed successfully.
+ *
+ * @retval ::HSA_STATUS_ERROR_NOT_INITIALIZED The HSA runtime has not been
+ * initialized.
+ *
+ * @retval ::HSA_STATUS_ERROR_OUT_OF_RESOURCES The HSA runtime failed to allocate
+ * the required resources.
+ *
+ * @retval ::HSA_STATUS_ERROR_INVALID_AGENT The agent is invalid.
+ *
+ * @retval ::HSA_STATUS_ERROR_INVALID_QUEUE_CREATION @p agent does not
+ * support queues of the given type.
+ *
+ * @retval ::HSA_STATUS_ERROR_INVALID_ARGUMENT @p size is not a power of two,
+ * @p size is 0, @p type is an invalid queue type, or @p queue is NULL.
+ *
+ */
+hsa_status_t HSA_API hsa_amd_queue_create(hsa_agent_t agent, uint32_t size, hsa_queue_type32_t type,
+                                          void (*callback)(hsa_status_t status, hsa_queue_t* source,
+                                                           void* data),
+                                          void* data, uint32_t private_segment_size,
+                                          uint32_t group_segment_size, hsa_queue_t** queue,
+                                          hsa_amd_queue_create_flags_type32_t flags);
 
 /** @} */
 
