@@ -388,6 +388,7 @@ TEST(rocrtstFunc, SvmMemory_Basic_Test) {
 
   RunCustomTestProlog(&smt);
   smt.TestCreateDestroy();
+  smt.TestSVMPrefetch();
   RunCustomTestEpilog(&smt);
 }
 
