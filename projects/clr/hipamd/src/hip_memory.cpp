@@ -1857,6 +1857,7 @@ hipError_t ihipMemcpyDtoHCommand(amd::Command*& command, void* dstHost, amd::Coo
         waitList.push_back(cmd);
       }
     }
+
     amd::ReadMemoryCommand* readCommand =
       new amd::ReadMemoryCommand(*stream, CL_COMMAND_READ_BUFFER_RECT, waitList,
                                  *srcMemory, srcStart, copyRegion, dstHost, srcRect, dstRect,
@@ -1870,6 +1871,10 @@ hipError_t ihipMemcpyDtoHCommand(amd::Command*& command, void* dstHost, amd::Coo
       return hipErrorInvalidValue;
     }
     command = readCommand;
+
+    if (!waitList.empty()) {
+      waitList[0]->release();
+    }
   }
 
   return hipSuccess;
@@ -2010,6 +2015,10 @@ hipError_t ihipMemcpyHtoACommand(amd::Command*& command, amd::Image* dstImage,
       return hipErrorInvalidValue;
     }
     command = writeMemCmd;
+
+    if (!waitList.empty()) {
+      waitList[0]->release();
+    }
   }
 
   return hipSuccess;
@@ -2060,6 +2069,10 @@ hipError_t ihipMemcpyAtoHCommand(amd::Command*& command, void* dstHost, amd::Coo
       return hipErrorInvalidValue;
     }
     command = readMemCmd;
+
+    if (!waitList.empty()) {
+      waitList[0]->release();
+    }
   }
 
   return hipSuccess;
