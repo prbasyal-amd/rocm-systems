@@ -439,9 +439,7 @@ class RocProfCompute_Base:
 
             options = self.get_profiler_options(fname, self._soc)
             if (
-                self.__profiler == "rocprofv1"
-                or self.__profiler == "rocprofv2"
-                or self.__profiler == "rocprofv3"
+                self.__profiler == "rocprofv3"
                 or self.__profiler == "rocprofiler-sdk"
             ):
                 start_run_prof = time.time()

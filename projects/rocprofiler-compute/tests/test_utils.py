@@ -385,7 +385,7 @@ def test_detect_rocprof_env_rocprof_not_found(monkeypatch):
         rocprofiler_sdk_library_path = "/fake/path"
 
     # Set ROCPROF to 'rocprof'
-    monkeypatch.setenv("ROCPROF", "rocprof")
+    monkeypatch.setenv("ROCPROF", "rocprofiler-sdk")
     # shutil.which returns None for 'rocprof'
     monkeypatch.setattr("shutil.which", lambda cmd: None)
     # Track calls to console_warning and console_error
@@ -420,11 +420,7 @@ def test_detect_rocprof_env_rocprof_found(monkeypatch):
     class DummyArgs:
         rocprofiler_sdk_library_path = "/fake/path"
 
-    monkeypatch.setenv("ROCPROF", "rocprof")
-    # shutil.which returns a fake path for 'rocprof'
-    monkeypatch.setattr(
-        "shutil.which", lambda cmd: "/usr/bin/rocprof" if cmd == "rocprof" else None
-    )
+    monkeypatch.setenv("ROCPROF", "rocprofiler-sdk")
     # Path.resolve returns the same path for simplicity
     monkeypatch.setattr("pathlib.Path.resolve", lambda self: self)
     # Track debug logs
@@ -435,7 +431,7 @@ def test_detect_rocprof_env_rocprof_found(monkeypatch):
     import utils.utils as utils_mod
 
     result = utils_mod.detect_rocprof(DummyArgs())
-    assert result == "rocprof"
+    assert result == "rocprofiler-sdk"
     assert any(
         "ROC Profiler: /usr/bin/rocprof" in log_entry
         or "rocprof_cmd is rocprof" in log_entry
@@ -2380,54 +2376,6 @@ def test_parse_text_file_not_found():
 # =============================================================================
 
 
-def test_run_prof_success_v2(tmp_path, monkeypatch):
-    """
-    Test run_prof with rocprofv2 successful execution.
-
-    Args:
-        tmp_path (pathlib.Path): Temporary directory for test files.
-        monkeypatch (pytest.MonkeyPatch): Pytest fixture for patching.
-
-    Returns:
-        None: Asserts successful execution and file creation.
-    """
-    fname = tmp_path / "test.txt"
-    fname.write_text("pmc: SQ_WAVES")
-    workload_dir = str(tmp_path / "workload")
-    os.makedirs(workload_dir + "/out/pmc_1", exist_ok=True)
-
-    csv_content = "Dispatch_ID,GPU_ID,Kernel_Name\n0,0,test_kernel"
-    with open(workload_dir + "/out/pmc_1/results_0.csv", "w") as f:
-        f.write(csv_content)
-
-    class MockSpec:
-        def __init__(self):
-            self.gpu_model = "mi250x"
-            self._l2_banks = 32
-            self.gpu_arch = "gfx90a"
-            self.compute_partition = "CPX"
-
-    mspec = MockSpec()
-
-    monkeypatch.setattr("utils.utils.rocprof_cmd", "rocprofv2")
-    monkeypatch.setattr(
-        "utils.utils.capture_subprocess_output", lambda *a, **k: (True, "success")
-    )
-    monkeypatch.setattr("utils.utils.using_v3", lambda: False)
-    monkeypatch.setattr("utils.utils.using_v1", lambda: False)
-    monkeypatch.setattr("utils.utils.console_debug", lambda *a, **k: None)
-    monkeypatch.setattr("utils.utils.console_log", lambda *a, **k: None)
-    monkeypatch.setattr(
-        "glob.glob", lambda pattern: [workload_dir + "/out/pmc_1/results_0.csv"]
-    )
-
-    import utils.utils as utils_mod
-
-    utils_mod.run_prof(str(fname), ["--arg"], workload_dir, mspec, logging.INFO, "csv")
-
-    assert Path(workload_dir + "/test.csv").exists()
-
-
 def test_run_prof_success_v3_csv(tmp_path, monkeypatch):
     """
     Test run_prof with rocprofv3 using CSV format.
@@ -2459,8 +2407,6 @@ def test_run_prof_success_v3_csv(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "utils.utils.capture_subprocess_output", lambda *a, **k: (True, "success")
     )
-    monkeypatch.setattr("utils.utils.using_v3", lambda: True)
-    monkeypatch.setattr("utils.utils.using_v1", lambda: False)
     monkeypatch.setattr("utils.utils.console_debug", lambda *a, **k: None)
     monkeypatch.setattr("utils.utils.console_log", lambda *a, **k: None)
     monkeypatch.setattr(
@@ -2511,7 +2457,6 @@ def test_run_prof_success_rocprofiler_sdk(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "utils.utils.capture_subprocess_output", lambda *a, **k: (True, "success")
     )
-    monkeypatch.setattr("utils.utils.using_v3", lambda: True)
     monkeypatch.setattr("utils.utils.parse_text", lambda f: ["SQ_WAVES"])
     monkeypatch.setattr("utils.utils.process_rocprofv3_output", lambda *a, **k: [])
     monkeypatch.setattr("utils.utils.console_debug", lambda *a, **k: None)
@@ -2555,8 +2500,6 @@ def test_run_prof_with_yaml_config(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "utils.utils.capture_subprocess_output", lambda *a, **k: (True, "success")
     )
-    monkeypatch.setattr("utils.utils.using_v3", lambda: True)
-    monkeypatch.setattr("utils.utils.using_v1", lambda: False)
     monkeypatch.setattr("utils.utils.process_rocprofv3_output", lambda *a, **k: [])
     monkeypatch.setattr("utils.utils.console_debug", lambda *a, **k: None)
     monkeypatch.setattr("utils.utils.console_log", lambda *a, **k: None)
@@ -2598,8 +2541,6 @@ def test_run_prof_failure_subprocess(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "utils.utils.capture_subprocess_output", lambda *a, **k: (False, "error output")
     )
-    monkeypatch.setattr("utils.utils.using_v3", lambda: True)
-    monkeypatch.setattr("utils.utils.using_v1", lambda: False)
     monkeypatch.setattr("utils.utils.console_debug", lambda *a, **k: None)
     monkeypatch.setattr("utils.utils.console_log", lambda *a, **k: None)
 
@@ -2652,8 +2593,6 @@ def test_run_prof_mi300_environment_setup(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "utils.utils.capture_subprocess_output", mock_capture_subprocess_output
     )
-    monkeypatch.setattr("utils.utils.using_v3", lambda: True)
-    monkeypatch.setattr("utils.utils.using_v1", lambda: False)
     monkeypatch.setattr("utils.utils.process_rocprofv3_output", lambda *a, **k: [])
     monkeypatch.setattr("utils.utils.console_debug", lambda *a, **k: None)
     monkeypatch.setattr("utils.utils.console_log", lambda *a, **k: None)
@@ -2703,8 +2642,6 @@ def test_run_prof_timestamps_special_case(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "utils.utils.capture_subprocess_output", lambda *a, **k: (True, "success")
     )
-    monkeypatch.setattr("utils.utils.using_v3", lambda: True)
-    monkeypatch.setattr("utils.utils.using_v1", lambda: False)
     monkeypatch.setattr(
         "utils.utils.process_rocprofv3_output", lambda *a, **k: csv_files
     )
@@ -2749,12 +2686,10 @@ def test_run_prof_no_results_files(tmp_path, monkeypatch):
 
     mspec = MockSpec()
 
-    monkeypatch.setattr("utils.utils.rocprof_cmd", "rocprofv2")
+    monkeypatch.setattr("utils.utils.rocprof_cmd", "rocprofiler-sdk")
     monkeypatch.setattr(
         "utils.utils.capture_subprocess_output", lambda *a, **k: (True, "success")
     )
-    monkeypatch.setattr("utils.utils.using_v3", lambda: False)
-    monkeypatch.setattr("utils.utils.using_v1", lambda: False)
     monkeypatch.setattr("glob.glob", lambda pattern: [])  # No files found
     monkeypatch.setattr("utils.utils.console_debug", lambda *a, **k: None)
     monkeypatch.setattr("utils.utils.console_log", lambda *a, **k: None)
@@ -2805,12 +2740,10 @@ def test_run_prof_header_standardization(tmp_path, monkeypatch):
         "EndNs": [200],
     })
 
-    monkeypatch.setattr("utils.utils.rocprof_cmd", "rocprofv2")
+    monkeypatch.setattr("utils.utils.rocprof_cmd", "rocprofiler-sdk")
     monkeypatch.setattr(
         "utils.utils.capture_subprocess_output", lambda *a, **k: (True, "success")
     )
-    monkeypatch.setattr("utils.utils.using_v3", lambda: False)
-    monkeypatch.setattr("utils.utils.using_v1", lambda: False)
     monkeypatch.setattr(
         "glob.glob", lambda pattern: [workload_dir + "/out/pmc_1/results_test.csv"]
     )
@@ -2845,72 +2778,6 @@ def test_run_prof_header_standardization(tmp_path, monkeypatch):
     assert "End_Timestamp" in final_headers
 
 
-def test_run_prof_tcc_flattening_mi300(tmp_path, monkeypatch):
-    """
-    Test run_prof applies TCC flattening for MI300 series GPUs.
-
-    Args:
-        tmp_path (pathlib.Path): Temporary directory for test files.
-        monkeypatch (pytest.MonkeyPatch): Pytest fixture for patching.
-
-    Returns:
-        None: Asserts TCC flattening is applied for MI300 GPUs.
-    """
-    fname = tmp_path / "test.txt"
-    fname.write_text("pmc: TCC_HIT[0]")
-    workload_dir = str(tmp_path / "workload")
-
-    class MockSpec:
-        def __init__(self):
-            self.gpu_model = "mi300x"
-            self.gpu_arch = "gfx942"
-            self.compute_partition = "SPX"
-            self._l2_banks = 32
-
-    mspec = MockSpec()
-
-    flatten_called = False
-
-    def mock_flatten_tcc_info_across_xcds(file, xcds, l2_banks):
-        nonlocal flatten_called
-        flatten_called = True
-        return pd.DataFrame({
-            "Dispatch_ID": [0],
-            "TCC_HIT[0]": [100],
-            "TCC_HIT[16]": [200],
-        })
-
-    # Mock functions
-    monkeypatch.setattr("utils.utils.rocprof_cmd", "rocprofv2")
-    monkeypatch.setattr(
-        "utils.utils.capture_subprocess_output", lambda *a, **k: (True, "success")
-    )
-    monkeypatch.setattr("utils.utils.using_v3", lambda: False)
-    monkeypatch.setattr("utils.utils.using_v1", lambda: False)
-    monkeypatch.setattr(
-        "utils.utils.flatten_tcc_info_across_xcds", mock_flatten_tcc_info_across_xcds
-    )
-    monkeypatch.setattr("utils.utils.mi_gpu_specs.get_num_xcds", lambda *a: 2)
-    monkeypatch.setattr(
-        "glob.glob", lambda pattern: [workload_dir + "/results_test.csv"]
-    )
-    monkeypatch.setattr("utils.utils.console_debug", lambda *a, **k: None)
-    monkeypatch.setattr("utils.utils.console_log", lambda *a, **k: None)
-
-    # Mock pandas
-    mock_df = pd.DataFrame({"Dispatch_ID": [0], "TCC_HIT[0]": [100]})
-    monkeypatch.setattr("pandas.read_csv", lambda *a, **k: mock_df)
-    monkeypatch.setattr("pandas.concat", lambda *a, **k: mock_df)
-    monkeypatch.setattr("pandas.DataFrame.to_csv", lambda self, *a, **k: None)
-
-    import utils.utils as utils_mod
-
-    # Execute function
-    utils_mod.run_prof(str(fname), ["--arg"], workload_dir, mspec, logging.INFO, "csv")
-
-    assert flatten_called
-
-
 import utils.utils as utils_mod  # noqa
 
 
@@ -2935,7 +2802,6 @@ def test_run_prof_sdk_creates_new_env_copy(tmp_path, monkeypatch):
     workload_dir_str = str(tmp_path)
 
     monkeypatch.setattr("utils.utils.rocprof_cmd", "rocprofiler-sdk")
-    monkeypatch.setattr("utils.utils.using_v3", lambda: False)
     monkeypatch.setattr("utils.utils.process_rocprofv3_output", lambda *a, **k: [])
 
     capture_subprocess_called_with_env = None
@@ -3097,7 +2963,6 @@ def test_run_prof_v3_sdk_and_cli_calls_trace_processing(tmp_path, monkeypatch):
     monkeypatch.setattr("shutil.copyfile", lambda *a, **k: None)
     monkeypatch.setattr("shutil.rmtree", lambda *a, **k: None)
     monkeypatch.setattr("builtins.open", lambda *a, **k: io.StringIO(""))
-    monkeypatch.setattr("utils.utils.flatten_tcc_info_across_xcds", lambda df, *a: df)
     monkeypatch.setattr("utils.utils.mi_gpu_specs.get_num_xcds", lambda *a: 1)
 
     mspec = MockMSpec()
@@ -3105,7 +2970,6 @@ def test_run_prof_v3_sdk_and_cli_calls_trace_processing(tmp_path, monkeypatch):
     format_rocprof_output = True
 
     monkeypatch.setattr("utils.utils.rocprof_cmd", "rocprofiler-sdk")
-    monkeypatch.setattr("utils.utils.using_v3", lambda: True)
 
     profiler_options_sdk_hip = {
         "APP_CMD": "my_app",
@@ -5437,304 +5301,7 @@ def test_mibench_console_log_called(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# TESTS FOR flatten_tcc_info_across_xcds
-# =============================================================================
-"""
-Normal Functionality:
-
-Basic single XCD operation
-Multiple XCD channel renumbering
-Complex channel index patterns
-Multiple dispatch handling
-Edge Cases:
-
-Empty dataframes
-Zero XCDs
-Insufficient data
-Large channel numbers
-Column Handling:
-
-No TCC columns
-TCC-only columns
-Mixed TCC/non-TCC columns
-Irregular TCC naming patterns
-Error Conditions:
-
-File not found errors
-Invalid input validation
-Performance & Data Integrity:
-
-Large dataset handling
-Data preservation validation
-Regex pattern validation
-"""
-
-
-def test_flatten_tcc_info_across_xcds_zero_xcds(tmp_path):
-    """
-    Test edge case with zero XCDs.
-
-    Args:
-        tmp_path (pathlib.Path): Temporary directory for test files.
-
-    Returns:
-        None: Asserts function handles zero XCDs edge case by raising ValueError.
-    """
-    columns = ["Kernel_Name", "TCC_HIT[0]"]
-    data = [["kernel1", 100]]
-
-    df = pd.DataFrame(data, columns=columns)
-    csv_file = tmp_path / "test_zero_xcds.csv"
-    df.to_csv(csv_file, index=False)
-
-    import utils.utils as utils_mod
-
-    with pytest.raises(ValueError, match="range\\(\\) arg 3 must not be zero"):
-        utils_mod.flatten_tcc_info_across_xcds(
-            str(csv_file), xcds=0, tcc_channel_per_xcd=4
-        )
-
-
-def test_flatten_tcc_info_across_xcds_insufficient_data(tmp_path):
-    """
-    Test when there's insufficient data for the specified XCDs.
-
-    Args:
-        tmp_path (pathlib.Path): Temporary directory for test files.
-
-    Returns:
-        None: Asserts function raises ValueError when trying
-        to process insufficient data.
-    """
-    columns = ["Kernel_Name", "TCC_HIT[0]"]
-    data = [["kernel1", 100]]
-
-    df = pd.DataFrame(data, columns=columns)
-    csv_file = tmp_path / "test_insufficient.csv"
-    df.to_csv(csv_file, index=False)
-
-    import utils.utils as utils_mod
-
-    with pytest.raises(ValueError, match="cannot set a row with mismatched columns"):
-        utils_mod.flatten_tcc_info_across_xcds(
-            str(csv_file), xcds=3, tcc_channel_per_xcd=4
-        )
-
-
-def test_flatten_tcc_info_across_xcds_irregular_tcc_column_names(tmp_path):
-    """
-    Test with irregular TCC column naming patterns.
-
-    Args:
-        tmp_path (pathlib.Path): Temporary directory for test files.
-
-    Returns:
-        None: Asserts function handles various TCC column name
-        patterns but may fail with pandas Series ambiguity.
-    """
-    columns = [
-        "Kernel_Name",
-        "TCC_HIT_SPECIAL[0]",
-        "NOT_TCC_BUT_HAS_TCC",
-        "TCC_MISS[0]",
-    ]
-    data = [
-        ["kernel1", 100, 50, 10],
-        ["kernel1", 200, 60, 20],
-    ]
-
-    df = pd.DataFrame(data, columns=columns)
-    csv_file = tmp_path / "test_irregular.csv"
-    df.to_csv(csv_file, index=False)
-
-    import utils.utils as utils_mod
-
-    try:
-        result = utils_mod.flatten_tcc_info_across_xcds(
-            str(csv_file), xcds=2, tcc_channel_per_xcd=4
-        )
-
-        assert len(result) == 1
-        assert "TCC_HIT_SPECIAL[0]" in result.columns
-        assert "TCC_HIT_SPECIAL[4]" in result.columns
-        assert "TCC_MISS[0]" in result.columns
-        assert "TCC_MISS[4]" in result.columns
-        assert result.iloc[0]["NOT_TCC_BUT_HAS_TCC"] == 50
-
-    except ValueError as e:
-        if "The truth value of a Series is ambiguous" in str(e):
-            pytest.skip(
-                "Function has pandas Series ambiguity issue in boolean evaluation"
-            )
-        else:
-            raise
-
-
-def test_flatten_tcc_info_across_xcds_regex_pattern_validation(tmp_path):
-    """
-    Test that regex pattern correctly identifies channel indices.
-
-    Args:
-        tmp_path (pathlib.Path): Temporary directory for test files.
-
-    Returns:
-        None: Asserts regex pattern works for various channel
-        index formats but may fail with pandas Series ambiguity.
-    """
-    columns = ["TCC_HIT[0]", "TCC_MISS[10]", "TCC_REQ[255]", "TCC_INVALID_NO_BRACKET"]
-    data = [
-        [100, 200, 300, 400],  # XCD 0
-        [500, 600, 700, 800],  # XCD 1
-    ]
-
-    df = pd.DataFrame(data, columns=columns)
-    csv_file = tmp_path / "test_regex.csv"
-    df.to_csv(csv_file, index=False)
-
-    import utils.utils as utils_mod
-
-    try:
-        result = utils_mod.flatten_tcc_info_across_xcds(
-            str(csv_file), xcds=2, tcc_channel_per_xcd=128
-        )
-
-        assert len(result) == 1
-        assert "TCC_HIT[0]" in result.columns
-        assert "TCC_HIT[128]" in result.columns  # 0 + 1*128
-        assert "TCC_MISS[10]" in result.columns
-        assert "TCC_MISS[138]" in result.columns  # 10 + 1*128
-        assert "TCC_REQ[255]" in result.columns
-        assert "TCC_REQ[383]" in result.columns  # 255 + 1*128
-
-        assert result.iloc[0]["TCC_INVALID_NO_BRACKET"] == 400
-
-    except ValueError as e:
-        if "The truth value of a Series is ambiguous" in str(e):
-            pytest.skip(
-                "Function has pandas Series ambiguity issue in boolean evaluation"
-            )
-        else:
-            raise
-
-
-def test_flatten_tcc_info_across_xcds_edge_case_validation(tmp_path):
-    """
-    Test edge cases and validation scenarios for
-    flatten_tcc_info_across_xcds.
-
-    Args:
-        tmp_path (pathlib.Path): Temporary directory for test files.
-
-    Returns:
-        None: Asserts function behavior with various edge cases.
-    """
-    import utils.utils as utils_mod
-
-    columns = ["Kernel_Name", "TCC_HIT[0]"]
-    data = [["kernel1", 100]]
-    df = pd.DataFrame(data, columns=columns)
-    csv_file = tmp_path / "test_zero_xcds.csv"
-    df.to_csv(csv_file, index=False)
-
-    with pytest.raises(ValueError):
-        utils_mod.flatten_tcc_info_across_xcds(
-            str(csv_file), xcds=0, tcc_channel_per_xcd=4
-        )
-
-    try:
-        result = utils_mod.flatten_tcc_info_across_xcds(
-            str(csv_file), xcds=-1, tcc_channel_per_xcd=4
-        )
-        assert len(result) == 0
-    except ValueError:
-        pass
-
-    with pytest.raises(FileNotFoundError):
-        utils_mod.flatten_tcc_info_across_xcds(
-            "nonexistent.csv", xcds=2, tcc_channel_per_xcd=4
-        )
-
-
-def test_flatten_tcc_info_across_xcds_pandas_filter_issue(tmp_path):
-    """
-    Test demonstrating the pandas filter regex issue that causes Series ambiguity error.
-
-    Args:
-        tmp_path (pathlib.Path): Temporary directory for test files.
-
-    Returns:
-        None: Documents the pandas boolean evaluation issue in the function.
-    """
-    columns = ["Kernel_Name", "TCC_HIT[0]", "SQ_WAVES"]
-    data = [
-        ["kernel1", 100, 50],
-        ["kernel1", 200, 60],
-    ]
-
-    df = pd.DataFrame(data, columns=columns)
-    csv_file = tmp_path / "test_pandas_issue.csv"
-    df.to_csv(csv_file, index=False)
-
-    import utils.utils as utils_mod
-
-    try:
-        result = utils_mod.flatten_tcc_info_across_xcds(
-            str(csv_file), xcds=2, tcc_channel_per_xcd=4
-        )
-
-        assert len(result) == 1
-        assert "Kernel_Name" in result.columns
-        assert "TCC_HIT[0]" in result.columns
-        assert "TCC_HIT[4]" in result.columns
-        assert "SQ_WAVES" in result.columns
-
-    except ValueError as e:
-        if "The truth value of a Series is ambiguous" in str(e):
-            pytest.skip(
-                "Known issue: pandas .filter() with regex causes "
-                "Series boolean ambiguity"
-            )
-        else:
-            raise
-
-
-def test_flatten_tcc_info_across_xcds_successful_cases_only(tmp_path):
-    """
-    Test only the cases that are expected to work successfully.
-
-    Args:
-        tmp_path (pathlib.Path): Temporary directory for test files.
-
-    Returns:
-        None: Asserts successful operation for known working scenarios.
-    """
-    import utils.utils as utils_mod
-
-    columns = ["TCC_HIT[0]", "TCC_MISS[0]"]
-    data = [
-        [100, 10],  # XCD 0
-        [200, 20],  # XCD 1
-    ]
-
-    df = pd.DataFrame(data, columns=columns)
-    csv_file = tmp_path / "test_simple_success.csv"
-    df.to_csv(csv_file, index=False)
-
-    result = utils_mod.flatten_tcc_info_across_xcds(
-        str(csv_file), xcds=2, tcc_channel_per_xcd=4
-    )
-
-    assert len(result) == 1
-    assert "TCC_HIT[0]" in result.columns
-    assert "TCC_HIT[4]" in result.columns
-    assert "TCC_MISS[0]" in result.columns
-    assert "TCC_MISS[4]" in result.columns
-    assert result.iloc[0]["TCC_HIT[0]"] == 100
-    assert result.iloc[0]["TCC_HIT[4]"] == 200
-
-
-# =============================================================================
-# TESTS FOR flatten_tcc_info_across_xcds
+# TESTS FOR get_submodules
 # =============================================================================
 """
 Normal Functionality:
@@ -8523,173 +8090,6 @@ def test_add_counter_overwrite_existing():
     updated_properties = ["P_UPDATED", "P_NEW"]  # noqa
 
 
-# =================================================================================
-# Test extract counter info extra config input yaml
-# =================================================================================
-
-
-def test_extract_counter_info_returns_none_when_not_found():
-    """
-    Test that extract_counter_info_extra_config_input_yaml returns None
-    when the counter is not found or data structure is incomplete.
-    """
-    data_empty = {}
-    assert (
-        utils.extract_counter_info_extra_config_input_yaml(data_empty, "ANY_COUNTER")
-        is None
-    )
-
-    data_no_counters_key = {"rocprofiler-sdk": {}}
-    assert (
-        utils.extract_counter_info_extra_config_input_yaml(
-            data_no_counters_key, "ANY_COUNTER"
-        )
-        is None
-    )
-
-    data_empty_counters_list = {"rocprofiler-sdk": {"counters": []}}
-    assert (
-        utils.extract_counter_info_extra_config_input_yaml(
-            data_empty_counters_list, "ANY_COUNTER"
-        )
-        is None
-    )
-
-    data_with_other_counters = {
-        "rocprofiler-sdk": {
-            "counters": [
-                {"name": "EXISTING_COUNTER_1", "value": "val1"},
-                {"name": "EXISTING_COUNTER_2", "value": "val2"},
-            ]
-        }
-    }
-    assert (
-        utils.extract_counter_info_extra_config_input_yaml(
-            data_with_other_counters, "NON_EXISTENT_COUNTER"
-        )
-        is None
-    )
-
-    data_with_malformed_counter = {
-        "rocprofiler-sdk": {
-            "counters": [
-                {"value": "val1"},  # No 'name' key
-                {"name": "EXISTING_COUNTER_2", "value": "val2"},
-            ]
-        }
-    }
-    assert (
-        utils.extract_counter_info_extra_config_input_yaml(
-            data_with_malformed_counter, "EXISTING_COUNTER_1"
-        )
-        is None
-    )
-    assert (
-        utils.extract_counter_info_extra_config_input_yaml(
-            data_with_malformed_counter, "EXISTING_COUNTER_2"
-        )
-        is not None
-    )
-
-
-def test_extract_counter_info_returns_counter_when_found():
-    """
-    Test that extract_counter_info_extra_config_input_yaml returns the correct
-    counter dictionary when the counter is found.
-    """
-    counter1_details = {
-        "name": "MY_COUNTER_1",
-        "description": "Desc 1",
-        "expression": "expr1",
-    }
-    counter2_details = {
-        "name": "MY_COUNTER_2",
-        "description": "Desc 2",
-        "expression": "expr2",
-    }
-    data = {
-        "rocprofiler-sdk": {
-            "counters-schema-version": 1,
-            "counters": [
-                counter1_details,
-                counter2_details,
-            ],
-        }
-    }
-
-    extracted_counter1 = utils.extract_counter_info_extra_config_input_yaml(
-        data, "MY_COUNTER_1"
-    )
-    assert extracted_counter1 is not None
-    assert extracted_counter1 == counter1_details
-
-    extracted_counter2 = utils.extract_counter_info_extra_config_input_yaml(
-        data, "MY_COUNTER_2"
-    )
-    assert extracted_counter2 is not None
-    assert extracted_counter2 == counter2_details
-
-
-# =============================================================================
-# test using_v1 function
-# =============================================================================
-
-
-def test_using_v1_rocprof_set_and_ends_with_rocprof_returns_true():
-    """
-    Covers the case where "ROCPROF" is in os.environ and its value ends with "rocprof".
-    This makes the entire expression True, so the function returns True.
-    """
-    with mock.patch.dict(
-        os.environ, {"ROCPROF": "/opt/rocm/bin/rocprof", "OTHER_VAR": "value"}
-    ):
-        assert utils.using_v1() is True
-
-
-def test_using_v1_rocprof_set_but_not_ends_with_rocprof_returns_false():
-    """
-    Covers the case where "ROCPROF" is in os.environ, but its value does
-    NOT end with "rocprof".
-
-    The second part of the 'and' (os.environ["ROCPROF"].endswith("rocprof")) is False.
-    So the function returns False.
-    """
-    with mock.patch.dict(
-        os.environ, {"ROCPROF": "/opt/rocm/bin/rocprofv2", "OTHER_VAR": "value"}
-    ):
-        assert utils.using_v1() is False
-
-    with mock.patch.dict(
-        os.environ, {"ROCPROF": "some/path/to/rocprof_tool", "OTHER_VAR": "value"}
-    ):
-        assert utils.using_v1() is False
-
-
-def test_using_v1_rocprof_not_in_environ_returns_false():
-    """
-    Covers the case where "ROCPROF" is NOT in os.environ.
-    The first part of the 'and' ("ROCPROF" in os.environ.keys()) is False.
-    Due to short-circuiting, the second part is not evaluated.
-    So the function returns False.
-    """
-    current_env = os.environ.copy()
-    if "ROCPROF" in current_env:
-        del current_env["ROCPROF"]
-
-    with mock.patch.dict(os.environ, current_env, clear=True):
-        assert utils.using_v1() is False
-
-
-def test_using_v1_rocprof_is_empty_string_returns_false():
-    """
-    Covers the case where "ROCPROF" is in os.environ but is an empty string.
-    The second part (os.environ["ROCPROF"].endswith("rocprof")) will be False.
-    So the function returns False.
-    """
-    with mock.patch.dict(os.environ, {"ROCPROF": "", "OTHER_VAR": "value"}):
-        assert utils.using_v1() is False
-
-
 # =============================================================================
 # additional test detect_rocprof console error
 # =============================================================================
@@ -8736,27 +8136,6 @@ class MockArgs:  # noqa
         if not isinstance(other, MockArgs):
             return NotImplemented
         return self.__dict__ == other.__dict__
-
-
-def test_store_app_cmd_sets_global_rocprof_args():
-    """
-    Tests that store_app_cmd correctly assigns the passed 'args'
-    object to the global 'rocprof_args'.
-    """
-    sample_args_object = MockArgs(
-        rocprofiler_sdk_library_path="/path/to/sdk",
-        input_file="input.txt",
-        some_other_option=True,
-    )
-
-    if hasattr(utils, "rocprof_args"):
-        utils.rocprof_args = None
-    else:
-        pass
-    utils.store_app_cmd(sample_args_object)
-    assert utils.rocprof_args is sample_args_object, (
-        "Global rocprof_args should be the same object as the passed args"
-    )
 
 
 # =============================================================================
@@ -9115,203 +8494,6 @@ def test_pc_sampling_prof_empty_appcmd(
         assert mock_capture_subprocess.called
         assert mock_capture_subprocess.call_args[0][0] == ""
         mock_console_error.assert_not_called()
-
-
-# =============================================================================
-# test replace_timestamps function
-# =============================================================================
-
-
-def create_dummy_csv(filepath, data_dict):
-    df = pd.DataFrame(data_dict)
-    df.to_csv(filepath, index=False)
-
-
-@mock.patch("utils.utils.console_warning")
-@mock.patch("utils.utils.path")
-def test_replace_timestamps_no_timestamps_csv_returns_early(
-    mock_path_util, mock_console_warning, tmp_path
-):
-    """
-    Edge Case: timestamps.csv does not exist in workload_dir.
-    The function should return early.
-    Covers: if not path(workload_dir, "timestamps.csv").is_file(): return
-    """
-    workload_dir = str(tmp_path)
-
-    mock_timestamps_path_obj = mock.Mock()
-    mock_timestamps_path_obj.is_file.return_value = False
-
-    mock_path_util.side_effect = lambda *args: (
-        mock_timestamps_path_obj if args[1] == "timestamps.csv" else mock.DEFAULT
-    )
-
-    utils.replace_timestamps(workload_dir)
-
-    mock_path_util.assert_any_call(workload_dir, "timestamps.csv")
-    mock_timestamps_path_obj.is_file.assert_called_once()
-    mock_console_warning.assert_not_called()
-
-
-@mock.patch("utils.utils.console_warning")
-@mock.patch("glob.glob")  # Mock glob.glob
-@mock.patch("utils.utils.path")
-def test_replace_timestamps_timestamps_csv_missing_columns_warns(
-    mock_path_util, mock_glob, mock_console_warning, tmp_path
-):
-    """
-    Edge Case: timestamps.csv exists but is missing
-    'Start_Timestamp' or 'End_Timestamp'.
-    The function should call console_warning.
-    Covers: else: console_warning(...)
-    """
-    workload_dir = str(tmp_path)
-    timestamps_csv_path_str = os.path.join(workload_dir, "timestamps.csv")
-
-    create_dummy_csv(timestamps_csv_path_str, {"Some_Other_Column": [123]})
-
-    mock_timestamps_path_obj = mock.Mock()
-    mock_timestamps_path_obj.is_file.return_value = True
-    mock_timestamps_path_obj.name = "timestamps.csv"
-
-    mock_path_util.side_effect = lambda *args, **kwargs: (
-        mock_timestamps_path_obj if args[-1] == "timestamps.csv" else mock.DEFAULT
-    )
-
-    utils.replace_timestamps(workload_dir)
-
-    mock_path_util.assert_any_call(workload_dir, "timestamps.csv")
-    mock_timestamps_path_obj.is_file.assert_called_once()
-    mock_console_warning.assert_called_once_with(
-        "Incomplete profiling data detected. Unable to update timestamps.\n"
-    )
-    mock_glob.assert_not_called()
-
-
-@mock.patch("utils.utils.console_warning")
-@mock.patch("glob.glob")
-@mock.patch("utils.utils.path")
-def test_replace_timestamps_updates_other_csvs_skips_sysinfo(
-    mock_path_util, mock_glob, mock_console_warning, tmp_path
-):
-    """
-    Edge Case: timestamps.csv is valid. Other CSVs exist, including sysinfo.csv.
-    Only non-sysinfo.csv files should be updated.
-    Covers: for fname in glob.glob(...): if path(fname).name != "sysinfo.csv": ...
-    """
-    workload_dir = str(tmp_path)
-    timestamps_csv_path_str = os.path.join(workload_dir, "timestamps.csv")
-    data_csv_path_str = os.path.join(workload_dir, "data.csv")
-    sysinfo_csv_path_str = os.path.join(workload_dir, "sysinfo.csv")
-
-    new_start_ts = [1000, 2000]
-    new_end_ts = [1500, 2500]
-    create_dummy_csv(
-        timestamps_csv_path_str,
-        {"Start_Timestamp": new_start_ts, "End_Timestamp": new_end_ts},
-    )
-
-    create_dummy_csv(
-        data_csv_path_str,
-        {"Kernel_Name": ["A", "B"], "Start_Timestamp": [1, 2], "End_Timestamp": [3, 4]},
-    )
-    create_dummy_csv(
-        sysinfo_csv_path_str,
-        {"Info": ["CPU", "MEM"], "Start_Timestamp": [5, 6], "End_Timestamp": [7, 8]},
-    )
-
-    def path_side_effect(*args, **kwargs):
-        p_obj = mock.Mock()
-        full_path = args[0] if len(args) == 1 else os.path.join(args[0], args[1])
-
-        if full_path == timestamps_csv_path_str:
-            p_obj.is_file.return_value = True
-            p_obj.name = "timestamps.csv"
-        elif full_path == data_csv_path_str:
-            p_obj.is_file.return_value = True
-            p_obj.name = "data.csv"
-        elif full_path == sysinfo_csv_path_str:
-            p_obj.is_file.return_value = True
-            p_obj.name = "sysinfo.csv"
-        else:
-            p_obj.is_file.return_value = False
-            p_obj.name = os.path.basename(full_path)
-        return p_obj
-
-    mock_path_util.side_effect = path_side_effect
-
-    mock_glob.return_value = [
-        data_csv_path_str,
-        sysinfo_csv_path_str,
-        timestamps_csv_path_str,
-    ]
-
-    utils.replace_timestamps(workload_dir)
-
-    mock_console_warning.assert_not_called()
-
-    df_data_updated = pd.read_csv(data_csv_path_str)
-    pd.testing.assert_series_equal(
-        df_data_updated["Start_Timestamp"],
-        pd.Series(new_start_ts, name="Start_Timestamp"),
-    )
-    pd.testing.assert_series_equal(
-        df_data_updated["End_Timestamp"], pd.Series(new_end_ts, name="End_Timestamp")
-    )
-
-    df_sysinfo_original = pd.read_csv(sysinfo_csv_path_str)
-    assert list(df_sysinfo_original["Start_Timestamp"]) == [5, 6]
-    assert list(df_sysinfo_original["End_Timestamp"]) == [7, 8]
-
-
-@mock.patch("utils.utils.console_warning")
-@mock.patch("glob.glob")
-@mock.patch("utils.utils.path")
-def test_replace_timestamps_no_other_csvs_to_update(
-    mock_path_util, mock_glob, mock_console_warning, tmp_path
-):
-    """
-    Edge Case: timestamps.csv is valid, but no other *.csv files
-    (or only sysinfo.csv) exist.
-    The loop for updating files should not do anything or not run.
-    Covers: The for loop not iterating if glob returns empty or only sysinfo.
-    """
-    workload_dir = str(tmp_path)
-    timestamps_csv_path_str = os.path.join(workload_dir, "timestamps.csv")
-    sysinfo_csv_path_str = os.path.join(workload_dir, "sysinfo.csv")
-
-    create_dummy_csv(
-        timestamps_csv_path_str, {"Start_Timestamp": [100], "End_Timestamp": [200]}
-    )
-    create_dummy_csv(
-        sysinfo_csv_path_str,
-        {"Info": ["CPU"], "Start_Timestamp": [5], "End_Timestamp": [7]},
-    )
-
-    def path_side_effect(*args, **kwargs):
-        p_obj = mock.Mock()
-        full_path = args[0] if len(args) == 1 else os.path.join(args[0], args[1])
-        if full_path == timestamps_csv_path_str:
-            p_obj.is_file.return_value = True
-            p_obj.name = "timestamps.csv"
-        elif full_path == sysinfo_csv_path_str:
-            p_obj.is_file.return_value = True
-            p_obj.name = "sysinfo.csv"
-        else:
-            p_obj.is_file.return_value = False
-            p_obj.name = os.path.basename(full_path)
-        return p_obj
-
-    mock_path_util.side_effect = path_side_effect
-
-    mock_glob.return_value = [timestamps_csv_path_str, sysinfo_csv_path_str]
-
-    utils.replace_timestamps(workload_dir)
-
-    mock_console_warning.assert_not_called()
-    df_sysinfo_original = pd.read_csv(sysinfo_csv_path_str)
-    assert list(df_sysinfo_original["Start_Timestamp"]) == [5]
-    assert list(df_sysinfo_original["End_Timestamp"]) == [7]
 
 
 def test_set_parser():

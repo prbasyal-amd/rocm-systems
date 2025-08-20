@@ -49,8 +49,6 @@ class gfx942_soc(OmniSoC_Base):
                 )
             )
         self.set_compatible_profilers([
-            "rocprofv1",
-            "rocprofv2",
             "rocprofv3",
             "rocprofiler-sdk",
         ])

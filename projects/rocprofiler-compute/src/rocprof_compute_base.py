@@ -117,11 +117,7 @@ class RocProfCompute:
 
     def detect_profiler(self):
         profiler_mode = detect_rocprof(self.__args)
-        if str(profiler_mode).endswith("rocprof"):
-            self.__profiler_mode = "rocprofv1"
-        elif str(profiler_mode).endswith("rocprofv2"):
-            self.__profiler_mode = "rocprofv2"
-        elif str(profiler_mode).endswith("rocprofv3"):
+        if str(profiler_mode).endswith("rocprofv3"):
             self.__profiler_mode = "rocprofv3"
         elif str(profiler_mode) == "rocprofiler-sdk":
             self.__profiler_mode = "rocprofiler-sdk"
@@ -324,25 +320,7 @@ class RocProfCompute:
             )
 
         # instantiate desired profiler
-        if self.__profiler_mode == "rocprofv1":
-            from rocprof_compute_profile.profiler_rocprof_v1 import rocprof_v1_profiler
-
-            profiler = rocprof_v1_profiler(
-                self.__args,
-                self.__profiler_mode,
-                self.__soc[self.__mspec.gpu_arch],
-                self.__supported_archs,
-            )
-        elif self.__profiler_mode == "rocprofv2":
-            from rocprof_compute_profile.profiler_rocprof_v2 import rocprof_v2_profiler
-
-            profiler = rocprof_v2_profiler(
-                self.__args,
-                self.__profiler_mode,
-                self.__soc[self.__mspec.gpu_arch],
-                self.__supported_archs,
-            )
-        elif self.__profiler_mode == "rocprofv3":
+        if self.__profiler_mode == "rocprofv3":
             from rocprof_compute_profile.profiler_rocprof_v3 import rocprof_v3_profiler
 
             profiler = rocprof_v3_profiler(

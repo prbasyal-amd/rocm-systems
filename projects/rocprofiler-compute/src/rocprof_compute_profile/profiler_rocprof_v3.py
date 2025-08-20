@@ -111,5 +111,3 @@ class rocprof_v3_profiler(RocProfCompute_Base):
         if self.ready_to_profile:
             # Manually join each pmc_perf*.csv output
             self.join_prof()
-            # Replace timestamp data to solve a known rocprof bug
-            # replace_timestamps(self.get_args().path)

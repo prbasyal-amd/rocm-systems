@@ -138,40 +138,6 @@ def add_counter_extra_config_input_yaml(
     return data
 
 
-def extract_counter_info_extra_config_input_yaml(
-    data: dict, counter_name: str
-) -> Optional[dict]:
-    """
-    Extract the full counter dictionary from 'data' for the given counter_name.
-
-    Args:
-        data (dict): The source YAML dict.
-        counter_name (str): The counter to find.
-
-    Returns:
-        Optional[dict]: The full counter dict if found, else None.
-    """
-    counters = data.get("rocprofiler-sdk", {}).get("counters", [])
-    for counter in counters:
-        if counter.get("name") == counter_name:
-            return counter
-    return None
-
-
-def using_v1():
-    return "ROCPROF" in os.environ.keys() and os.environ["ROCPROF"].endswith("rocprof")
-
-
-def using_v3():
-    return "ROCPROF" not in os.environ.keys() or (
-        "ROCPROF" in os.environ.keys()
-        and (
-            os.environ["ROCPROF"].endswith("rocprofv3")
-            or os.environ["ROCPROF"] == "rocprofiler-sdk"
-        )
-    )
-
-
 def get_version(rocprof_compute_home) -> dict:
     """Return ROCm Compute Profiler versioning info"""
 
@@ -258,11 +224,6 @@ def detect_rocprof(args):
         console_debug("rocprof_cmd is {}".format(str(rocprof_cmd)))
         console_debug("ROC Profiler: " + rocprof_path)
     return rocprof_cmd
-
-
-def store_app_cmd(args):
-    global rocprof_args
-    rocprof_args = args
 
 
 def capture_subprocess_output(
@@ -713,45 +674,43 @@ def run_prof(
         default_options = ["-i", fname]
         options = default_options + profiler_options
 
-    if using_v3():
-        if rocprof_cmd == "rocprofiler-sdk":
-            options["ROCPROF_AGENT_INDEX"] = "absolute"
-        else:
-            options = ["-A", "absolute"] + options
+    if rocprof_cmd == "rocprofiler-sdk":
+        options["ROCPROF_AGENT_INDEX"] = "absolute"
+    else:
+        options = ["-A", "absolute"] + options
 
     new_env = os.environ.copy()
 
-    if using_v3():
-        # Counter definitions
-        with open(
-            config.rocprof_compute_home
-            / "rocprof_compute_soc"
-            / "profile_configs"
-            / "counter_defs.yaml",
-            "r",
-        ) as file:
-            counter_defs = yaml.safe_load(file)
-        # Extra counter definitions
-        if path(fname).with_suffix(".yaml").exists():
-            with open(path(fname).with_suffix(".yaml"), "r") as file:
-                counter_defs["rocprofiler-sdk"]["counters"].extend(
-                    yaml.safe_load(file)["rocprofiler-sdk"]["counters"]
-                )
-        # Write counter definitions to a temporary file
-        tmpfile_path = (
-            path(tempfile.mkdtemp(prefix="rocprof_counter_defs_", dir="/tmp"))
-            / "counter_defs.yaml"
-        )
-        with open(tmpfile_path, "w") as tmpfile:
-            yaml.dump(counter_defs, tmpfile, default_flow_style=False, sort_keys=False)
-        # Set counter definitions
-        new_env["ROCPROFILER_METRICS_PATH"] = str(tmpfile_path.parent)
-        console_debug(
-            (
-                "Adding env var for counter definitions: "
-                f"ROCPROFILER_METRICS_PATH={new_env['ROCPROFILER_METRICS_PATH']}"
+    # Counter definitions
+    with open(
+        config.rocprof_compute_home
+        / "rocprof_compute_soc"
+        / "profile_configs"
+        / f"counter_defs.yaml",
+        "r",
+    ) as file:
+        counter_defs = yaml.safe_load(file)
+    # Extra counter definitions
+    if path(fname).with_suffix(".yaml").exists():
+        with open(path(fname).with_suffix(".yaml"), "r") as file:
+            counter_defs["rocprofiler-sdk"]["counters"].extend(
+                yaml.safe_load(file)["rocprofiler-sdk"]["counters"]
             )
+    # Write counter definitions to a temporary file
+    tmpfile_path = (
+        path(tempfile.mkdtemp(prefix="rocprof_counter_defs_", dir="/tmp"))
+        / "counter_defs.yaml"
+    )
+    with open(tmpfile_path, "w") as tmpfile:
+        yaml.dump(counter_defs, tmpfile, default_flow_style=False, sort_keys=False)
+    # Set counter definitions
+    new_env["ROCPROFILER_METRICS_PATH"] = str(tmpfile_path.parent)
+    console_debug(
+        (
+            "Adding env var for counter definitions: "
+            f"ROCPROFILER_METRICS_PATH={new_env['ROCPROFILER_METRICS_PATH']}"
         )
+    )
 
     # set required env var for >= mi300
     if mspec.gpu_model.lower() not in (
@@ -805,7 +764,6 @@ def run_prof(
     results_files = []
 
     if format_rocprof_output == "rocpd":
-        if rocprof_cmd == "rocprofiler-sdk" or rocprof_cmd.endswith("v3"):
             # Write results_fbase.csv
             rocpd_data.convert_db_to_csv(
                 glob.glob(workload_dir + "/out/pmc_1/*/*.db")[0],
@@ -822,79 +780,45 @@ def run_prof(
             # Remove temp directory
             shutil.rmtree(workload_dir + "/" + "out")
             return
-        else:
-            console_error(
-                (
-                    "rocpd output format is only supported with "
-                    "rocprofiler-sdk or rocprofv3."
-                )
-            )
-    elif rocprof_cmd.endswith("v2"):
-        # rocprofv2 has separate csv files for each process
-        results_files = glob.glob(workload_dir + "/out/pmc_1/results_*.csv")
 
-        if len(results_files) == 0:
-            return
+    # rocprofv3 requires additional processing for each process
+    results_files = process_rocprofv3_output(
+        format_rocprof_output, workload_dir, is_timestamps
+    )
 
-        # Combine results into single CSV file
+    if rocprof_cmd == "rocprofiler-sdk":
+        # TODO: as rocprofv3 --kokkos-trace feature improves,
+        # rocprof-compute should make updates accordingly
+        if "ROCPROF_HIP_RUNTIME_API_TRACE" in options:
+            process_hip_trace_output(workload_dir, fbase)
+    else:
+        if "--kokkos-trace" in options:
+            # TODO: as rocprofv3 --kokkos-trace feature improves,
+            # rocprof-compute should make updates accordingly
+            process_kokkos_trace_output(workload_dir, fbase)
+        elif "--hip-trace" in options:
+            process_hip_trace_output(workload_dir, fbase)
+
+    # Combine results into single CSV file
+    if results_files:
         combined_results = pd.concat(
             [pd.read_csv(f) for f in results_files], ignore_index=True
         )
-
-        # Overwrite column to ensure unique IDs.
-        combined_results["Dispatch_ID"] = range(0, len(combined_results))
-
-        combined_results.to_csv(
-            workload_dir + "/out/pmc_1/results_" + fbase + ".csv", index=False
-        )
-    elif rocprof_cmd.endswith("v3") or rocprof_cmd == "rocprofiler-sdk":
-        # rocprofv3 requires additional processing for each process
-        results_files = process_rocprofv3_output(
-            format_rocprof_output, workload_dir, is_timestamps
-        )
-
-        if rocprof_cmd == "rocprofiler-sdk":
-            # TODO: as rocprofv3 --kokkos-trace feature improves,
-            # rocprof-compute should make updates accordingly
-            if "ROCPROF_HIP_RUNTIME_API_TRACE" in options:
-                process_hip_trace_output(workload_dir, fbase)
-        else:
-            if "--kokkos-trace" in options:
-                # TODO: as rocprofv3 --kokkos-trace feature improves,
-                # rocprof-compute should make updates accordingly
-                process_kokkos_trace_output(workload_dir, fbase)
-            elif "--hip-trace" in options:
-                process_hip_trace_output(workload_dir, fbase)
-
-        # Combine results into single CSV file
-        if results_files:
-            combined_results = pd.concat(
-                [pd.read_csv(f) for f in results_files], ignore_index=True
+    else:
+        console_warning(
+            (
+                f"Cannot write results for {fbase}.csv due to no counter "
+                "csv files generated."
             )
-        else:
-            console_warning(
-                (
-                    f"Cannot write results for {fbase}.csv due to no counter "
-                    "csv files generated."
-                )
-            )
-            return
-
-        # Overwrite column to ensure unique IDs.
-        combined_results["Dispatch_ID"] = range(0, len(combined_results))
-
-        combined_results.to_csv(
-            workload_dir + "/out/pmc_1/results_" + fbase + ".csv", index=False
         )
+        return
 
-    if not using_v3() and not using_v1():
-        # flatten tcc for applicable mi300 input
-        f = path(workload_dir + "/out/pmc_1/results_" + fbase + ".csv")
-        xcds = mi_gpu_specs.get_num_xcds(
-            mspec.gpu_arch, mspec.gpu_model, mspec.compute_partition
-        )
-        df = flatten_tcc_info_across_xcds(f, xcds, int(mspec._l2_banks))
-        df.to_csv(f, index=False)
+    # Overwrite column to ensure unique IDs.
+    combined_results["Dispatch_ID"] = range(0, len(combined_results))
+
+    combined_results.to_csv(
+        workload_dir + "/out/pmc_1/results_" + fbase + ".csv", index=False
+    )
 
     if path(workload_dir + "/out").exists():
         # copy and remove out directory if needed
@@ -1122,26 +1046,6 @@ def process_hip_trace_output(workload_dir, fbase):
         )
 
 
-def replace_timestamps(workload_dir):
-    if not path(workload_dir, "timestamps.csv").is_file():
-        return
-
-    df_stamps = pd.read_csv(workload_dir + "/timestamps.csv")
-    if "Start_Timestamp" in df_stamps.columns and "End_Timestamp" in df_stamps.columns:
-        # Update timestamps for all *.csv output files
-        for fname in glob.glob(workload_dir + "/" + "*.csv"):
-            if path(fname).name != "sysinfo.csv":
-                df_pmc_perf = pd.read_csv(fname)
-
-                df_pmc_perf["Start_Timestamp"] = df_stamps["Start_Timestamp"]
-                df_pmc_perf["End_Timestamp"] = df_stamps["End_Timestamp"]
-                df_pmc_perf.to_csv(fname, index=False)
-    else:
-        console_warning(
-            "Incomplete profiling data detected. Unable to update timestamps.\n"
-        )
-
-
 def gen_sysinfo(workload_name, workload_dir, app_cmd, skip_roof, mspec, soc):
     console_debug("[gen_sysinfo]")
     df = mspec.get_class_members()
@@ -1279,71 +1183,6 @@ def mibench(args, mspec):
         my_args,
         check=True,
     )
-
-
-def flatten_tcc_info_across_xcds(file, xcds, tcc_channel_per_xcd):
-    """
-    Flatten TCC per channel counters across all XCDs in partition.
-    NB: This func highly depends on the default behavior of rocprofv2 on MI300,
-        which might be broken anytime in the future!
-    """
-    df_orig = pd.read_csv(file)
-    # display(df_orig.info)
-
-    ### prepare column headers
-    tcc_cols_orig = []
-    non_tcc_cols_orig = []
-    for c in df_orig.columns.to_list():
-        if "TCC" in c:
-            tcc_cols_orig.append(c)
-        else:
-            non_tcc_cols_orig.append(c)
-    # print(tcc_cols_orig)
-
-    cols = non_tcc_cols_orig
-    tcc_cols_in_group = {}
-    for i in range(0, xcds):
-        tcc_cols_in_group[i] = []
-
-    for col in tcc_cols_orig:
-        for i in range(0, xcds):
-            # filter the channel index only
-            p = re.compile(r"\[(\d+)\]")
-            # pick up the 1st element only
-            r = (  # noqa: E731
-                lambda match: "["
-                + str(int(match.group(1)) + i * tcc_channel_per_xcd)
-                + "]"
-            )
-            tcc_cols_in_group[i].append(re.sub(pattern=p, repl=r, string=col))
-
-    for i in range(0, xcds):
-        # print(tcc_cols_in_group[i])
-        cols += tcc_cols_in_group[i]
-    # print(cols)
-    df = pd.DataFrame(columns=cols)
-
-    ### Rearrange data with extended column names
-
-    # print(len(df_orig.index))
-    for idx in range(0, len(df_orig.index), xcds):
-        # assume the front none TCC columns are the same for all XCCs
-        df_non_tcc = df_orig.iloc[idx].filter(regex=r"^(?!.*TCC).*$")
-        # display(df_non_tcc)
-        flatten_list = df_non_tcc.tolist()
-
-        # extract all tcc from one dispatch
-        # NB: assuming default contiguous order might not be safe!
-        df_tcc_all = df_orig.iloc[idx : (idx + xcds)].filter(regex="TCC")
-        # display(df_tcc_all)
-
-        for idx, row in df_tcc_all.iterrows():
-            flatten_list += row.tolist()
-        # print(len(df.index), len(flatten_list), len(df.columns), flatten_list)
-        # NB: It is not the best perf to append a row once a time
-        df.loc[len(df.index)] = flatten_list
-
-    return df
 
 
 def get_submodules(package_name):
