@@ -25,6 +25,7 @@ Full documentation for HIP is available at [rocm.docs.amd.com](https://rocm.docs
       asynchronously
     - `hipMemPrefetchAsync_v2`  prefetches memory to the specified location
     - `hipMemAdvise_v2`         advise about the usage of a given memory range
+    - 'hipModuleGetLoadingMode' returns the module loading mode - HIP_MODULE_EAGER_LOADING or HIP_MODULE_LAZY_LOADING.
 * Changed HIP APIs
     - `hipMemCreate`  now can take hipDeviceMallocUncached as a flag to allocate uncached memory
 

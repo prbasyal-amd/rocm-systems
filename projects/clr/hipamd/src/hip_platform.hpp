@@ -112,6 +112,7 @@ class PlatformState {
   bool CloseUniqueFileHandle(const std::shared_ptr<UniqueFD>& ufd);
 
   size_t UfdMapSize() const { return ufd_map_.size(); }
+  void getLoadingMode(hipModuleLoadingMode_t* mode);
 
  private:
   // Dynamic Code Object map, keyin module to get the corresponding object
