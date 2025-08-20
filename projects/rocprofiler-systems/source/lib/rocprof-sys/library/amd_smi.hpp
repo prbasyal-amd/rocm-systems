@@ -136,7 +136,6 @@ private:
 
     static size_t                        device_count;
     static std::set<uint32_t>            device_list;
-    static std::unique_ptr<promise_t>    polling_finished;
     static std::vector<data>&            get_initial();
     static std::unique_ptr<std::thread>& get_thread();
     static bool                          setup();

@@ -29,6 +29,9 @@
 #include "core/agent.hpp"
 #include "core/trace_cache/cache_manager.hpp"
 #include "core/trace_cache/cache_utility.hpp"
+#include "core/trace_cache/sample_type.hpp"
+#include <amd_smi/amdsmi.h>
+#include <limits>
 #if defined(NDEBUG)
 #    undef NDEBUG
 #endif
@@ -61,6 +64,7 @@
 #include <stdexcept>
 #include <string>
 #include <sys/resource.h>
+#include <tuple>
 
 #define ROCPROFSYS_AMD_SMI_CALL(...)                                                     \
     ::rocprofsys::amd_smi::check_error(__FILE__, __LINE__, __VA_ARGS__)
@@ -74,13 +78,51 @@ using sampler_instances = thread_data<bundle_t, category::amd_smi>;
 
 namespace
 {
-int64_t
-get_tid()
+enum class metric_type : uint8_t
 {
-    static thread_local auto _v = threading::get_id();
-    return _v;
-}
+    busy = 0,
+    temp,
+    power,
+    mem_usage,
+    vcn_activity,
+    jpeg_activity,
+    invalid
+};
 
+metric_type
+metric_type_from_string(const std::string& str)
+{
+#define FROM_STRING(ENUM)                                                                \
+    if(str == #ENUM) return metric_type::ENUM;
+    FROM_STRING(busy);
+    FROM_STRING(temp);
+    FROM_STRING(power);
+    FROM_STRING(mem_usage);
+    FROM_STRING(vcn_activity);
+    FROM_STRING(jpeg_activity);
+#undef FROM_STRING
+    return metric_type::invalid;
+};
+
+std::string
+metric_type_to_string(metric_type type)
+{
+#define TO_STRING_CASE(ENUM)                                                             \
+    case metric_type::ENUM: return #ENUM;
+    switch(type)
+    {
+        TO_STRING_CASE(busy);
+        TO_STRING_CASE(temp);
+        TO_STRING_CASE(power);
+        TO_STRING_CASE(mem_usage);
+        TO_STRING_CASE(vcn_activity);
+        TO_STRING_CASE(jpeg_activity);
+        default: return "";
+    }
+#undef FROM_STRING
+};
+
+// remove
 rocpd::data_processor&
 get_data_processor()
 {
@@ -150,6 +192,7 @@ metadata_initialize_smi_pmc(size_t gpu_id)
           rocprofsys::trace_cache::ABSOLUTE, BLOCK, EXPRESSION, 0, 0 });
 }
 
+// move to rocpd post processing
 void
 rocpd_process_smi_pmc_events(const uint32_t device_id, const amd_smi::settings& settings,
                              uint64_t timestamp, double busy, double temp, double power,
@@ -183,6 +226,7 @@ rocpd_process_smi_pmc_events(const uint32_t device_id, const amd_smi::settings& 
                             trait::name<category::amd_smi_memory_usage>::value, usage);
 }
 
+// move map to class
 auto&
 get_settings(uint32_t _dev_id)
 {
@@ -190,13 +234,14 @@ get_settings(uint32_t _dev_id)
     return _v[_dev_id];
 }
 
+// ?
 bool&
 is_initialized()
 {
     static bool _v = false;
     return _v;
 }
-
+// helper
 amdsmi_version_t&
 get_version()
 {
@@ -213,6 +258,7 @@ get_version()
     return _v;
 }
 
+// change signature, remove _option, write it simpler
 void
 check_error(const char* _file, int _line, amdsmi_status_t _code, bool* _option = nullptr)
 {
@@ -235,6 +281,19 @@ check_error(const char* _file, int _line, amdsmi_status_t _code, bool* _option =
                      _msg);
 }
 
+bool
+check_success(amdsmi_status_t _code)
+{
+    return _code == AMDSMI_STATUS_SUCCESS;
+}
+
+bool
+check_if_is_supported(amdsmi_status_t _code)
+{
+    return _code != AMDSMI_STATUS_NOT_SUPPORTED;
+}
+
+// move to class
 std::atomic<State>&
 get_state()
 {
@@ -245,10 +304,430 @@ get_state()
 
 //--------------------------------------------------------------------------------------//
 
-size_t                           data::device_count     = 0;
-std::set<uint32_t>               data::device_list      = {};
-std::unique_ptr<data::promise_t> data::polling_finished = {};
+class amd_smi_sampler
+{
+public:
+    struct xcp_metrics_t
+    {
+        std::vector<uint16_t> vcn_busy;
+        std::vector<uint16_t> jpeg_busy;
+    };
 
+    // gpu::device_count(), config::get_sampling_gpus(),
+    // get_setting_value<std::string>("ROCPROFSYS_AMD_SMI_METRICS");
+    amd_smi_sampler(int device_count, const std::string& sampling_gpus,
+                    const std::string& _metrics)
+    {
+        auto_lock_t _lk{ type_mutex<category::amd_smi>() };
+
+        if(is_initialized() || !get_use_amd_smi()) return;  // prevent this
+
+        ROCPROFSYS_SCOPED_SAMPLING_ON_CHILD_THREADS(false);
+
+        if(!gpu::initialize_amdsmi())
+        {
+            ROCPROFSYS_WARNING_F(
+                0, "AMD SMI is not available. Disabling AMD SMI sampling...");
+            return;
+        }
+
+        amdsmi_version_t _version = get_version();
+        ROCPROFSYS_VERBOSE_F(0, "AMD SMI version: %u.%u.%u - str: %s.\n", _version.major,
+                             _version.minor, _version.release, _version.build);
+
+        configure_devices(device_count, sampling_gpus);
+        configure_metrics(_metrics);
+
+        is_initialized() = true;  // ?? Prevent this
+        perfetto_counter_track<data>::init();
+        amd_smi::set_state(State::PreInit);
+    }
+
+    ~amd_smi_sampler()
+    {
+        auto_lock_t _lk{ type_mutex<category::amd_smi>() };
+        // if(!is_initialized()) return;
+        ROCPROFSYS_VERBOSE_F(1, "Shutting down amd-smi...\n");
+        amd_smi::set_state(State::Finalized);
+        bool is_enabled = true;
+        amdsmi_get(is_enabled, amdsmi_shut_down);
+        ROCPROFSYS_AMD_SMI_CALL(amdsmi_shut_down());
+        // is_initialized() = false;
+    }
+
+    void sample(uint32_t _device_id)
+    {
+        if(is_child_process()) return;
+
+        auto _timestamp = tim::get_clock_real_now<size_t, std::nano>();
+        assert(_timestamp < std::numeric_limits<int64_t>::max());
+
+        auto _state = get_state().load();
+
+        if(_state != State::Active) return;
+
+        bool                    _vcn_or_jpeg_activity_enabled = false;
+        amdsmi_processor_handle sample_handle = gpu::get_handle_from_id(_device_id);
+
+        amdsmi_engine_usage_t      busy_perc;
+        int64_t                    temperature;
+        amdsmi_power_info_t        power;
+        uint64_t                   mem_usage;
+        amdsmi_gpu_metrics_t       _gpu_metrics;
+        std::vector<xcp_metrics_t> xcp_metrics = {};
+
+        amdsmi_get(m_settings[_device_id][metric_type::busy], amdsmi_get_gpu_activity,
+                   sample_handle, &busy_perc);
+
+        amdsmi_get(m_settings[_device_id][metric_type::temp], amdsmi_get_temp_metric,
+                   sample_handle, AMDSMI_TEMPERATURE_TYPE_JUNCTION, AMDSMI_TEMP_CURRENT,
+                   &temperature);
+#if(AMDSMI_LIB_VERSION_MAJOR == 2 && AMDSMI_LIB_VERSION_MINOR == 0) ||                   \
+    (AMDSMI_LIB_VERSION_MAJOR == 25 && AMDSMI_LIB_VERSION_MINOR == 2)
+        // This was a transient change in the AMD SMI API. It was never officially
+        // released.
+        amdsmi_get(m_settings[_device_id][metric_type::power], amdsmi_get_power_info,
+                   sample_handle, 0, &m_power)
+#else
+        amdsmi_get(m_settings[_device_id][metric_type::power], amdsmi_get_power_info,
+                   sample_handle, &power);
+#endif
+            amdsmi_get(m_settings[_device_id][metric_type::mem_usage],
+                       amdsmi_get_gpu_memory_usage, sample_handle, AMDSMI_MEM_TYPE_VRAM,
+                       &mem_usage);
+
+        _vcn_or_jpeg_activity_enabled =
+            m_settings[_device_id][metric_type::vcn_activity] ||
+            m_settings[_device_id][metric_type::jpeg_activity];
+        if(!_vcn_or_jpeg_activity_enabled)
+        {
+            amdsmi_get(_vcn_or_jpeg_activity_enabled, amdsmi_get_gpu_metrics_info,
+                       sample_handle, &_gpu_metrics);
+
+            if(_vcn_or_jpeg_activity_enabled)
+            {
+                process_xcp_metrics(_device_id, _gpu_metrics, xcp_metrics);
+            }
+            else
+            {
+                // if not supported, disable both
+                m_settings[_device_id][metric_type::vcn_activity]  = false;
+                m_settings[_device_id][metric_type::jpeg_activity] = false;
+            }
+        }
+
+        size_t total_data_to_serialize = sizeof(size_t);
+        for(const auto& metrics : xcp_metrics)
+        {
+            total_data_to_serialize +=
+                metrics.vcn_busy.size() * sizeof(uint16_t) + sizeof(size_t);
+            total_data_to_serialize +=
+                metrics.jpeg_busy.size() * sizeof(uint16_t) + sizeof(size_t);
+        }
+
+        std::vector<uint8_t> xcp_data_serialized;
+        xcp_data_serialized.reserve(total_data_to_serialize);
+
+        trace_cache::get_buffer_storage().store(
+            trace_cache::entry_type::pmc_event_with_sample, _device_id, _timestamp,
+            busy_perc.gfx_activity, busy_perc.umc_activity, busy_perc.mm_activity,
+            temperature, power.current_socket_power,
+            mem_usage);  // TODO: SERIALIZE VCN AND JPEG ACTIVITY
+    }
+
+private:
+    enum class Filter : uint8_t
+    {
+        All,
+        None,
+        Specific
+    };
+
+    void configure_devices(size_t _device_count, const std::string& _sampling_gpus)
+    {
+        std::string _devices_v;
+        std::transform(_sampling_gpus.begin(), _sampling_gpus.end(), _devices_v.begin(),
+                       [](const auto& c) { return std::tolower(c); });
+
+        if(_devices_v == "off")
+            _devices_v = "none";
+        else if(_devices_v == "on")
+            _devices_v = "all";
+
+        Filter filter = Filter::Specific;
+        if(_devices_v == "all" || _devices_v.empty())
+        {
+            filter = Filter::All;
+        }
+        if(_devices_v == "none")
+        {
+            filter = Filter::None;
+        }
+
+        std::set<uint32_t> _devices = {};
+        auto _emplace = [_device_count, &_devices](const uint32_t& device_id) {
+            if(device_id < _device_count) _devices.emplace(device_id);
+        };
+
+        if(filter == Filter::All)
+        {
+            for(uint32_t i = 0; i < _device_count; ++i)
+                _emplace(i);
+        }
+        else if(filter == Filter::Specific)
+        {
+            auto _enabled = tim::delimit(_devices_v, ",; \t");
+
+            for(auto&& itr : _enabled)
+            {
+                auto type = parse_specification(itr);
+                if(type == SpecificationType::Range_Entry)
+                {
+                    auto _range       = tim::delimit(itr, "-");
+                    auto [begin, end] = parse_range_format(itr, _range);
+                    for(auto i = begin; i < end; ++i)
+                        _emplace(i);
+                }
+                else
+                {
+                    _emplace(std::stoul(itr));
+                }
+            }
+        }
+
+        m_device_count = _device_count;  // Doesn't make sense to keep device count like
+                                         // this if we filter devices
+        m_device_list = _devices;
+    }
+
+    enum class SpecificationType : uint8_t
+    {
+        Single_Entry,
+        Range_Entry,
+    };
+
+    static SpecificationType parse_specification(const std::string& _specification)
+    {
+        auto is_valid =
+            _specification.find_first_not_of("0123456789-") != std::string::npos;
+        if(!is_valid)
+        {
+            ROCPROFSYS_THROW("Invalid GPU specification: '%s'. Only numerical values "
+                             "(e.g., 0) or ranges (e.g., 0-7) are permitted.",
+                             _specification.c_str());
+        }
+
+        return _specification.find('-') != std::string::npos
+                   ? SpecificationType::Range_Entry
+                   : SpecificationType::Single_Entry;
+    };
+
+    static std::tuple<size_t, size_t> parse_range_format(
+        const std::string&              _range_specification,
+        const std::vector<std::string>& _range_delimited)
+    {
+        ROCPROFSYS_CONDITIONAL_THROW(_range_delimited.size() != 2,
+                                     "Invalid GPU range specification: '%s'. "
+                                     "Required format N-M, e.g. 0-4",
+                                     _range_specification.c_str());
+
+        auto begin = std::stoul(_range_delimited.at(0));
+        auto end   = std::stoul(_range_delimited.at(1));
+        ROCPROFSYS_CONDITIONAL_THROW(
+            end >= begin,
+            "Invalid GPU range specification: '%s'. "
+            "Required end of ragne to be greater than begin, e.g. 1-5",
+            _range_specification.c_str());
+        return std::make_tuple(begin, end);
+    };
+
+    void initialize_supported()
+    {
+        for(const auto& device_id : m_device_list)
+        {
+            sample(device_id);
+        }
+    }
+
+    void disable_all_settings(uint32_t _device_id)
+    {
+        m_settings[_device_id][metric_type::busy]          = false;
+        m_settings[_device_id][metric_type::temp]          = false;
+        m_settings[_device_id][metric_type::power]         = false;
+        m_settings[_device_id][metric_type::mem_usage]     = false;
+        m_settings[_device_id][metric_type::vcn_activity]  = false;
+        m_settings[_device_id][metric_type::jpeg_activity] = false;
+    }
+
+    void configure_metrics(const std::optional<std::string>& _metrics)
+    {
+        initialize_supported();
+        if(!_metrics.has_value() || _metrics->empty())
+        {
+            return;
+        }
+
+        if(*_metrics == "all")
+        {
+            // All supported samples are already enabled
+            return;
+        }
+        if(*_metrics == "none")
+        {
+            for(const auto& _device_id : m_device_list)
+            {
+                disable_all_settings(_device_id);
+            }
+            return;
+        }
+
+        auto                     metrics = tim::delimit(*_metrics, ",;:\t\n ");
+        std::vector<metric_type> required_metrics;
+        required_metrics.reserve(metrics.size());
+        for(const auto& metric : metrics)
+        {
+            required_metrics.push_back(metric_type_from_string(metric));
+        }
+
+        if(std::count(required_metrics.begin(), required_metrics.end(),
+                      metric_type::invalid) > 0)
+        {
+            ROCPROFSYS_WARNING(
+                0, "Unsupported amd-smi metric detected. Ignoring invalid input.");
+
+            // Prevent invalid metrics
+            required_metrics.erase(std::remove(required_metrics.begin(),
+                                               required_metrics.end(),
+                                               [](const metric_type& type) {
+                                                   return type == metric_type::invalid;
+                                               }),
+                                   required_metrics.end());
+        }
+
+        for(auto _device_id : m_device_list)
+        {
+            auto supported = m_settings[_device_id];
+
+            disable_all_settings(_device_id);
+
+            for(const auto& metric : required_metrics)
+            {
+                auto iitr = supported.find(metric);
+
+                ROCPROFSYS_VERBOSE_F(1, "Enabling amd-smi metric '%s' on device [%u]\n",
+                                     metric_type_to_string(metric).c_str(), _device_id);
+
+                iitr->second = true;
+            }
+
+            m_settings[_device_id] = supported;
+        }
+    }
+
+    template <typename T>
+    static std::vector<uint16_t> extract_valid_metrics(const T& source_array)
+    {
+        std::vector<uint16_t> result;
+        for(const auto& val : source_array)
+        {
+            if(val != std::numeric_limits<uint16_t>::max())
+            {
+                result.push_back(val);
+            }
+        }
+        return result;
+    }
+
+    static xcp_metrics_t create_xcp_metrics(const std::vector<uint16_t>& vcn_data,
+                                            const std::vector<uint16_t>& jpeg_data)
+    {
+        xcp_metrics_t metrics;
+        metrics.vcn_busy  = vcn_data;
+        metrics.jpeg_busy = jpeg_data;
+        return metrics;
+    }
+
+    static bool has_metrics_data(const xcp_metrics_t& metrics)
+    {
+        return !metrics.vcn_busy.empty() || !metrics.jpeg_busy.empty();
+    }
+
+    static void process_xcp_metrics(uint32_t                    device_id,
+                                    const amdsmi_gpu_metrics_t& gpu_metrics,
+                                    std::vector<xcp_metrics_t>& xcp_metrics)
+    {
+        const bool vcn_supported  = gpu::is_vcn_activity_supported(device_id);
+        const bool jpeg_supported = gpu::is_jpeg_activity_supported(device_id);
+
+        if(vcn_supported || jpeg_supported)
+        {
+            auto vcn_data  = vcn_supported
+                                 ? extract_valid_metrics(gpu_metrics.vcn_activity)
+                                 : std::vector<uint16_t>{};
+            auto jpeg_data = jpeg_supported
+                                 ? extract_valid_metrics(gpu_metrics.jpeg_activity)
+                                 : std::vector<uint16_t>{};
+
+            auto metrics = create_xcp_metrics(vcn_data, jpeg_data);
+            if(has_metrics_data(metrics))
+            {
+                xcp_metrics.push_back(metrics);
+            }
+            return;
+        }
+
+        for(const auto& xcp : gpu_metrics.xcp_stats)
+        {
+            auto vcn_data  = extract_valid_metrics(xcp.vcn_busy);
+            auto jpeg_data = extract_valid_metrics(xcp.jpeg_busy);
+
+            auto metrics = create_xcp_metrics(vcn_data, jpeg_data);
+            if(has_metrics_data(metrics))
+            {
+                xcp_metrics.push_back(metrics);
+            }
+        }
+    }
+
+    template <typename GetterFunction, typename... Args,
+              typename = std::enable_if_t<std::is_same_v<
+                  std::invoke_result_t<std::decay_t<GetterFunction>, Args...>,
+                  amdsmi_status_t>>>
+    void amdsmi_get(bool& option, GetterFunction&& func, Args&&... args)
+    {
+        if(option)
+        {
+            auto _code = std::invoke(std::forward<GetterFunction>(func),
+                                     std::forward<Args>(args)...);
+            if(::rocprofsys::amd_smi::check_success(_code))
+            {
+                return;
+            }
+
+            if(!::rocprofsys::amd_smi::check_if_is_supported(_code))
+            {
+                option = false;
+                return;
+            }
+
+            // TODO: Log better message
+            ROCPROFSYS_VERBOSE_F(0, "Disabling future samples from amd-smi...\n");
+            amd_smi::set_state(State::Disabled);
+        }
+    }
+
+private:
+    using device_id_t    = uint32_t;
+    using metric_enabled = std::unordered_map<metric_type, bool>;
+
+    size_t                                          m_device_count{ 0 };
+    std::set<device_id_t>                           m_device_list{};
+    std::unordered_map<device_id_t, metric_enabled> m_settings{};
+};
+
+// move to class
+
+// sample should be just method
 data::data(uint32_t _dev_id) { sample(_dev_id); }
 
 void
@@ -268,6 +747,7 @@ data::sample(uint32_t _dev_id)
     m_dev_id = _dev_id;
     m_ts     = _ts;
 
+    // move to function - start
 #define ROCPROFSYS_AMDSMI_GET(OPTION, FUNCTION, ...)                                     \
     if(OPTION)                                                                           \
     {                                                                                    \
@@ -304,6 +784,8 @@ data::sample(uint32_t _dev_id)
         get_settings(m_dev_id).vcn_activity || get_settings(m_dev_id).jpeg_activity;
     ROCPROFSYS_AMDSMI_GET(_vcn_or_jpeg_activity_enabled, amdsmi_get_gpu_metrics_info,
                           sample_handle, &_gpu_metrics);
+
+    // move to function - end
 
     // Process metrics if either VCN or JPEG activity is enabled
     if(_vcn_or_jpeg_activity_enabled)
@@ -391,6 +873,8 @@ config()
                 *_bundle_data.at(i) = unique_ptr_t<bundle_t>{ new bundle_t{} };
         }
     }
+
+    // Checking if supported
     data::get_initial().resize(data::device_count);
     for(auto itr : data::device_list)
         data::get_initial().at(itr).sample(itr);
@@ -692,6 +1176,7 @@ setup()
     ROCPROFSYS_VERBOSE_F(0, "AMD SMI version: %u.%u.%u - str: %s.\n", _version.major,
                          _version.minor, _version.release, _version.build);
 
+    // func get sampling devices
     data::device_count = gpu::device_count();
 
     auto _devices_v = get_sampling_gpus();
@@ -745,6 +1230,7 @@ setup()
 
     data::device_list = _devices;
 
+    // get enabled metrics sampling
     auto _metrics = get_setting_value<std::string>("ROCPROFSYS_AMD_SMI_METRICS");
 
     try

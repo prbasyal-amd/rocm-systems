@@ -21,10 +21,12 @@
 // SOFTWARE.
 
 #pragma once
+#include <cstdint>
 #include <stdint.h>
 #include <string>
 #include <unistd.h>
 #include <utility>
+#include <vector>
 
 #if ROCPROFSYS_USE_ROCM > 0
 #    include <rocprofiler-sdk/version.h>
@@ -182,6 +184,21 @@ struct pmc_event_with_sample : in_time_sample
     size_t      value;
 };
 
+struct amd_smi_sample : storage_parsed_type_base
+{
+    size_t   device_id;
+    size_t   timestamp;
+    uint32_t gfx_activity;
+    uint32_t ucm_activity;
+    uint32_t mm_activity;
+    int64_t  temperature;
+    uint32_t power;
+    uint64_t mem_usage;
+
+    std::vector<uint8_t> vcn_activity;   // Serialized
+    std::vector<uint8_t> jpeg_activity;  // Serialized
+};
+
 enum class entry_type : uint32_t
 {
     in_time_sample        = 0x0000,
@@ -192,6 +209,7 @@ enum class entry_type : uint32_t
 #if(ROCPROFSYS_USE_ROCM && ROCPROFILER_VERSION >= 600)
     memory_alloc = 0x0005,
 #endif
+    amd_smi_sample   = 0x0006,
     fragmented_space = 0xFFFF
 };
 }  // namespace trace_cache
