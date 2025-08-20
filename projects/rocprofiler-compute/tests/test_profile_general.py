@@ -366,7 +366,7 @@ def gpu_soc():
 
 soc = gpu_soc()
 
-os.environ["ROCPROF"] = "rocprofv3"
+os.environ["ROCPROF"] = "rocprofiler-sdk"
 
 
 def using_v3():

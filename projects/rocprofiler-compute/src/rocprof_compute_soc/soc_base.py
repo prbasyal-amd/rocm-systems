@@ -480,16 +480,6 @@ class OmniSoC_Base:
 
     def get_rocprof_supported_counters(self):
         rocprof_cmd = detect_rocprof(self.get_args())
-
-        if rocprof_cmd != "rocprofiler-sdk":
-            console_warning(
-                "rocprof v1/v2/v3 interfaces will be removed in favor of "
-                "rocprofiler-sdk interface in a future release. To use "
-                "rocprofiler-sdk, set ROCPROF to 'rocprofiler-sdk' and "
-                "optionally provide the path to librocprofiler-sdk.so via "
-                "--rocprofiler-sdk-library-path."
-            )
-
         rocprof_counters = set()
 
         if str(rocprof_cmd).endswith("rocprof"):

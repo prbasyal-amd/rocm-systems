@@ -232,7 +232,8 @@ def detect_rocprof(args):
     """Detect loaded rocprof version. Resolve path and set cmd globally."""
     global rocprof_cmd
 
-    if os.environ.get("ROCPROF") == "rocprofiler-sdk":
+    # Default is rocprofiler-sdk
+    if os.environ.get("ROCPROF", "rocprofiler-sdk") == "rocprofiler-sdk":
         if not path(args.rocprofiler_sdk_library_path).exists():
             console_error(
                 "Could not find rocprofiler-sdk library at "
@@ -243,38 +244,19 @@ def detect_rocprof(args):
         console_debug(
             "rocprofiler_sdk_path is {}".format(args.rocprofiler_sdk_library_path)
         )
-        return rocprof_cmd
-
-    # detect rocprof
-    if not "ROCPROF" in os.environ.keys():
-        # default rocprof
-        rocprof_cmd = "rocprofv3"
     else:
+        # If ROCPROF is not set to rocprofiler-sdk
         rocprof_cmd = os.environ["ROCPROF"]
-
-    # resolve rocprof path
-    rocprof_path = shutil.which(rocprof_cmd)
-
-    if not rocprof_path:
-        rocprof_cmd = "rocprofv3"
-        console_warning(
-            "Unable to resolve path to %s binary. Reverting to default." % rocprof_cmd
-        )
         rocprof_path = shutil.which(rocprof_cmd)
         if not rocprof_path:
             console_error(
-                (
-                    "Please verify installation or set ROCPROF environment variable "
-                    "with full path."
-                )
+                f"Unable to resolve path to {rocprof_cmd} binary. "
+                "Please verify installation or set ROCPROF "
+                "environement variable with full path."
             )
-    else:
-        # Resolve any sym links in file path
         rocprof_path = str(path(rocprof_path.rstrip("\n")).resolve())
-        console_debug("ROC Profiler: " + str(rocprof_path))
-
-    console_debug("rocprof_cmd is {}".format(str(rocprof_cmd)))
-    # TODO: Do we still need to return this? It's not being used in the function call
+        console_debug("rocprof_cmd is {}".format(str(rocprof_cmd)))
+        console_debug("ROC Profiler: " + rocprof_path)
     return rocprof_cmd
 
 
