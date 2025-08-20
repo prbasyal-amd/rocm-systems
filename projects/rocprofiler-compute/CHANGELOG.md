@@ -97,6 +97,9 @@ Full documentation for ROCm Compute Profiler is available at [https://rocm.docs.
   * L1I-L2 Bandwidth
   * sL1D-L2 BW
 
+* Default rocprof interface changed from rocprofv3 to rocprofiler-sdk
+  * Use ROCPROF=rocprofv3 to use rocprofv3 interface
+
 ### Resolved issues
 
 * Fixed not detecting memory clock issue when using amd-smi
@@ -120,6 +123,7 @@ Full documentation for ROCm Compute Profiler is available at [https://rocm.docs.
 * Usage of rocm-smi
 * Hardware IP block based filtering has been removed in favor of analysis report block based filtering
 * Remove aggregated analysis view from TUI mode
+* Remove rocprofv1 and rocprofv2 interfaces
 
 
 ## ROCm Compute Profiler 3.2.3 for ROCm 7.0.0
