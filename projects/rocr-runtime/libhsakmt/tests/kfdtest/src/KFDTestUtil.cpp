@@ -274,6 +274,41 @@ HSAuint64 GetSystemTickCountInMicroSec() {
     return t.tv_sec * 1000000ULL + t.tv_usec;
 }
 
+bool GPUMemCopy(
+    void* dst, void* src, size_t size, unsigned int node,
+    BaseQueue& baseQueue, Assembler* pAsm)
+{
+    if (baseQueue.GetQueueType() == HSA_QUEUE_SDMA) {
+        baseQueue.PlaceAndSubmitPacket(SDMACopyDataPacket(baseQueue.GetFamilyId(), dst, src, size));
+        baseQueue.Wait4PacketConsumption();
+        return true;
+    } else if (baseQueue.GetQueueType() == HSA_QUEUE_COMPUTE) {
+        if (!pAsm) return false;
+
+        HsaMemoryBuffer isaBuffer(PAGE_SIZE, node, true, false, true); 
+        if (pAsm->RunAssembleBuf(CopyWordsIsa, isaBuffer.As<char*>()) != HSAKMT_STATUS_SUCCESS)
+            return false;
+        
+        HsaMemoryBuffer addrBuffer(PAGE_SIZE, node);
+        void **localBufAddr = addrBuffer.As<void **>();
+        localBufAddr[0] = src;
+        localBufAddr[1] = dst;
+        
+        HsaMemoryBuffer sizeBuffer(PAGE_SIZE, node);
+        unsigned int *pSize = sizeBuffer.As<unsigned int *>();
+        *pSize = static_cast<unsigned int>(size / sizeof(unsigned int));
+        
+        Dispatch dispatch(isaBuffer);
+        dispatch.SetArgs(localBufAddr, pSize);
+        dispatch.SetDim(1, 1, 1);
+        dispatch.Submit(baseQueue);
+        dispatch.Sync();
+        return true;
+    } else {
+        return false;
+    }
+}
+
 const HsaMemoryBuffer HsaMemoryBuffer::Null;
 
 HsaMemoryBuffer::HsaMemoryBuffer(HSAuint64 size, unsigned int node, bool zero, bool isLocal, bool isExec,

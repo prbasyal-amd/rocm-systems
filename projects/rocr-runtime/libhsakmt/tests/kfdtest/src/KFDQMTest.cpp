@@ -1662,7 +1662,7 @@ TEST_F(KFDQMTest, QueuePriorityOnSamePipe) {
     TEST_END
 }
 
-void KFDQMTest::SyncDispatch(const HsaMemoryBuffer& isaBuffer, void* pSrcBuf, void* pDstBuf, int node) {
+void KFDQMTest::SyncDispatch(const HsaMemoryBuffer& isaBuffer, void* arg0, void* arg1, int node) {
     PM4Queue queue;
 
     if (node == -1)
@@ -1671,7 +1671,7 @@ void KFDQMTest::SyncDispatch(const HsaMemoryBuffer& isaBuffer, void* pSrcBuf, vo
     ASSERT_GE_GPU(node, 0, node) << "failed to get GPU Node";
 
     Dispatch dispatch(isaBuffer);
-    dispatch.SetArgs(pSrcBuf, pDstBuf);
+    dispatch.SetArgs(arg0, arg1);
     dispatch.SetDim(1, 1, 1);
 
     ASSERT_SUCCESS_GPU(queue.Create(node), node);
@@ -1736,6 +1736,50 @@ TEST_F(KFDQMTest, SimpleWriteDispatch) {
     ASSERT_SUCCESS(KFDTest_Launch(SimpleWriteDispatch));
 
     TEST_END
+}
+
+void MultipleWordsDispatch(KFDTEST_PARAMETERS* pTestParamters) {
+    int gpuNode = pTestParamters->gpuNode;
+    KFDQMTest* pKFDQMTest = (KFDQMTest*)pTestParamters->pTestObject;
+
+    Assembler* m_pAsm;
+    m_pAsm = pKFDQMTest->GetAssemblerFromNodeId(gpuNode);
+    ASSERT_NOTNULL_GPU(m_pAsm, gpuNode);
+
+    HsaMemoryBuffer isaBuffer(PAGE_SIZE, gpuNode, true, false, true);
+
+    HsaMemoryBuffer srcBuffer(PAGE_SIZE, gpuNode, false);
+    HsaMemoryBuffer destBuffer(PAGE_SIZE, gpuNode);
+
+    const unsigned int bufferSize = (PAGE_SIZE / sizeof(unsigned int));
+
+    srcBuffer.Fill(0x01010101, 0, PAGE_SIZE);
+
+    HsaMemoryBuffer addrBuffer(PAGE_SIZE, gpuNode);
+    void **localBufAddr = addrBuffer.As<void **>();
+
+    HsaMemoryBuffer resultBuffer(PAGE_SIZE, gpuNode);
+    unsigned int *result = resultBuffer.As<unsigned int *>();
+
+    localBufAddr[0] = srcBuffer.As<void *>();
+    localBufAddr[1] = destBuffer.As<void *>();
+    result[0] = bufferSize;
+
+    ASSERT_SUCCESS_GPU(m_pAsm->RunAssembleBuf(CopyWordsIsa, isaBuffer.As<char*>()), gpuNode);
+
+    pKFDQMTest->SyncDispatch(isaBuffer, localBufAddr, result, gpuNode);
+
+    for (unsigned int i = 0; i < bufferSize; ++i) {
+         EXPECT_EQ(destBuffer.As<unsigned int*>()[i], 0x01010101);
+    }
+}
+
+TEST_F(KFDQMTest, MultipleWordsDispatch) {
+    TEST_START(TESTPROFILE_RUNALL);
+
+    ASSERT_SUCCESS(KFDTest_Launch(MultipleWordsDispatch));
+
+    TEST_END;
 }
 
 static void MultipleCpQueuesStressDispatch(KFDTEST_PARAMETERS* pTestParamters) {
