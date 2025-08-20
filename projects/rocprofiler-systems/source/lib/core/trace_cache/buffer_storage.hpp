@@ -63,7 +63,7 @@ public:
 
         constexpr bool is_supported_type = (supported_types::is_supported<T> && ...);
         static_assert(is_supported_type, "Supported types are const char*, char*, "
-                                         "unsigned long, unsigned int, and int.");
+                                         "unsigned long, unsigned int, and int TODO.");
 
         auto   arg_size        = get_size(values...);
         auto   total_size      = arg_size + sizeof(type) + sizeof(size_t);
@@ -116,8 +116,8 @@ private:
             (std::is_same_v<std::decay_t<T>, Types> || ...);
     };
 
-    using supported_types =
-        typelist<const char*, char*, uint64_t, int32_t, uint32_t, std::vector<uint8_t>>;
+    using supported_types = typelist<const char*, char*, uint64_t, int32_t, uint32_t,
+                                     uint8_t, std::vector<uint8_t>>;
 
     template <typename T>
     static constexpr bool is_string_literal_v =

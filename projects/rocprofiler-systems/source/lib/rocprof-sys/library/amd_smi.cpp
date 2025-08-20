@@ -327,7 +327,8 @@ public:
         if(!gpu::initialize_amdsmi())
         {
             ROCPROFSYS_WARNING_F(
-                0, "AMD SMI is not available. Disabling AMD SMI sampling...");
+                0, "AMD SMI is not available. Disabling AMD SMI sampling...");  // prevent
+                                                                                // this
             return;
         }
 
@@ -416,23 +417,31 @@ public:
             }
         }
 
-        size_t total_data_to_serialize = sizeof(size_t);
-        for(const auto& metrics : xcp_metrics)
-        {
-            total_data_to_serialize +=
-                metrics.vcn_busy.size() * sizeof(uint16_t) + sizeof(size_t);
-            total_data_to_serialize +=
-                metrics.jpeg_busy.size() * sizeof(uint16_t) + sizeof(size_t);
-        }
+        auto xcp_metrics_serialized = serialize_xcp_metrics(xcp_metrics);
 
-        std::vector<uint8_t> xcp_data_serialized;
-        xcp_data_serialized.reserve(total_data_to_serialize);
+        // TODO: Should we switch to multiple stores to filter out only enabled metrics?
+        // Child processes will not sample AMD-SMI
+        // Only root process will do the sampling
 
         trace_cache::get_buffer_storage().store(
-            trace_cache::entry_type::pmc_event_with_sample, _device_id, _timestamp,
-            busy_perc.gfx_activity, busy_perc.umc_activity, busy_perc.mm_activity,
-            temperature, power.current_socket_power,
-            mem_usage);  // TODO: SERIALIZE VCN AND JPEG ACTIVITY
+            trace_cache::entry_type::amd_smi_sample,
+            static_cast<uint8_t>(trace_cache::amd_smi_sample::type::gfx_activity),
+            _device_id, _timestamp, busy_perc.gfx_activity);
+        trace_cache::get_buffer_storage().store(
+            trace_cache::entry_type::amd_smi_sample,
+            static_cast<uint8_t>(trace_cache::amd_smi_sample::type::gfx_activity),
+            _device_id, _timestamp, busy_perc.umc_activity);
+        trace_cache::get_buffer_storage().store(
+            trace_cache::entry_type::amd_smi_sample,
+            static_cast<uint8_t>(trace_cache::amd_smi_sample::type::gfx_activity),
+            _device_id, _timestamp, busy_perc.mm_activity);
+        trace_cache::get_buffer_storage().store(
+            trace_cache::entry_type::amd_smi_sample,
+            static_cast<uint8_t>(trace_cache::amd_smi_sample::type::gfx_activity),
+            _device_id, _timestamp, temperature);
+             power.current_socket_power,
+            mem_usage,
+             xcp_metrics_serialized);
     }
 
 private:
@@ -442,6 +451,42 @@ private:
         None,
         Specific
     };
+
+    std::vector<uint8_t> serialize_xcp_metrics(
+        const std::vector<amd_smi_sampler::xcp_metrics_t>& metrics_vec)
+    {
+        size_t total_size = sizeof(size_t);  // for root vector size
+        for(const auto& metrics : metrics_vec)
+        {
+            total_size += sizeof(size_t) + metrics.vcn_busy.size() * sizeof(uint16_t);
+            total_size += sizeof(size_t) + metrics.jpeg_busy.size() * sizeof(uint16_t);
+        }
+
+        std::vector<uint8_t> buffer;
+        buffer.reserve(total_size);
+
+        size_t offset = 0;
+        auto   append = [&](auto value) {
+            size_t sz = sizeof(value);
+            std::memcpy(buffer.data() + offset, &value, sz);
+            offset += sz;
+        };
+
+        append(static_cast<size_t>(metrics_vec.size()));
+
+        for(const auto& metrics : metrics_vec)
+        {
+            append(static_cast<size_t>(metrics.vcn_busy.size()));
+            for(uint16_t v : metrics.vcn_busy)
+                append(v);
+
+            append(static_cast<size_t>(metrics.jpeg_busy.size()));
+            for(uint16_t j : metrics.jpeg_busy)
+                append(j);
+        }
+
+        return buffer;
+    }
 
     void configure_devices(size_t _device_count, const std::string& _sampling_gpus)
     {

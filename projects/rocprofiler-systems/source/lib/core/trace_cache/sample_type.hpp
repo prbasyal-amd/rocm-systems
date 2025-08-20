@@ -186,6 +186,16 @@ struct pmc_event_with_sample : in_time_sample
 
 struct amd_smi_sample : storage_parsed_type_base
 {
+    enum class type : uint8_t
+    {
+        gfx_activity,
+        ucm_activity,
+        mm_activity,
+        temperature,
+        power,
+        mem_usage,
+        xcp_activity
+    };
     size_t   device_id;
     size_t   timestamp;
     uint32_t gfx_activity;
@@ -195,8 +205,7 @@ struct amd_smi_sample : storage_parsed_type_base
     uint32_t power;
     uint64_t mem_usage;
 
-    std::vector<uint8_t> vcn_activity;   // Serialized
-    std::vector<uint8_t> jpeg_activity;  // Serialized
+    std::vector<uint8_t> xcp_activity;  // Serialized
 };
 
 enum class entry_type : uint32_t
