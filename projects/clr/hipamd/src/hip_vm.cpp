@@ -365,7 +365,8 @@ hipError_t hipMemSetAccess(void* ptr, size_t size, const hipMemAccessDesc* desc,
   }
 
   for (size_t desc_idx = 0; desc_idx < count; ++desc_idx) {
-    if (desc[desc_idx].location.type != hipMemLocationTypeDevice) {
+    hipMemLocationType locationType = desc[desc_idx].location.type;
+    if (locationType != hipMemLocationTypeDevice && locationType != hipMemLocationTypeHost) {
       HIP_RETURN(hipErrorInvalidValue);
     }
 
@@ -381,7 +382,8 @@ hipError_t hipMemSetAccess(void* ptr, size_t size, const hipMemAccessDesc* desc,
       HIP_RETURN(hipErrorInvalidValue);
     }
 
-    if (!dev->devices()[0]->SetMemAccess(ptr, size, access_flags)) {
+    if (!dev->devices()[0]->SetMemAccess(ptr, size, access_flags,
+                                         static_cast<amd::Device::VmmLocationType>(locationType))) {
       HIP_RETURN(hipErrorInvalidValue);
     }
   }

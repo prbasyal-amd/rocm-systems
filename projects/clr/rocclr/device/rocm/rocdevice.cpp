@@ -2369,11 +2369,13 @@ bool Device::virtualFree(void* addr) {
   return true;
 }
 
-bool Device::SetMemAccess(void* va_addr, size_t va_size, VmmAccess access_flags) {
+bool Device::SetMemAccess(void* va_addr, size_t va_size, VmmAccess access_flags,
+                          VmmLocationType access_location) {
   hsa_status_t hsa_status = HSA_STATUS_SUCCESS;
   hsa_amd_memory_access_desc_t desc;
   desc.permissions = static_cast<hsa_access_permission_t>(access_flags);
-  desc.agent_handle = getBackendDevice();
+  desc.agent_handle =
+      access_location == VmmLocationType::kDevice ? getBackendDevice() : getCpuAgent();
 
   if ((hsa_status = hsa_amd_vmem_set_access(va_addr, va_size, &desc, 1)) != HSA_STATUS_SUCCESS) {
     LogPrintfError("Failed hsa_amd_vmem_set_access. Failed with status:%d \n", hsa_status);
