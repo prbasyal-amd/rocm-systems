@@ -2060,11 +2060,11 @@ inline static hipError_t hipMemPrefetchAsync_v2(const void* dev_ptr, size_t coun
 inline static hipError_t hipMemAdvise_v2(const void* dev_ptr, size_t count, hipMemoryAdvise advice,
                                          hipMemLocation location) {
 #if CUDA_VERSION >= 13000
-    return hipCUDAErrorTohipError(cudaMemAdvise(dev_ptr, count,
-        hipMemoryAdviseTocudaMemoryAdvise(advice), location));
+  return hipCUDAErrorTohipError(cudaMemAdvise(dev_ptr, count,
+      hipMemoryAdviseTocudaMemoryAdvise(advice), location));
 #else
-    return hipCUDAErrorTohipError(cudaMemAdvise_v2(dev_ptr, count,
-        hipMemoryAdviseTocudaMemoryAdvise(advice), location));
+  return hipCUDAErrorTohipError(cudaMemAdvise_v2(dev_ptr, count,
+      hipMemoryAdviseTocudaMemoryAdvise(advice), location));
 #endif
 }
 
@@ -2171,7 +2171,7 @@ inline static hipError_t hipSetDevice(int device) {
   return hipCUDAErrorTohipError(cudaSetDevice(device));
 }
 
-/inline static hipError_t hipChooseDevice(int* device, const hipDeviceProp_t* prop) {
+inline static hipError_t hipChooseDevice(int* device, const hipDeviceProp_t* prop) {
   if (prop == NULL) {
     return hipErrorInvalidValue;
   }
