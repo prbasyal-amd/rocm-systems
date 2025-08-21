@@ -140,8 +140,7 @@ Panel Config:
     Read (32B): The total number of L2 requests to Infinity Fabric to read 32B of
       data from any memory location, per normalization unit.
     Read (64B): The total number of L2 requests to Infinity Fabric to read 64B of
-      data from any memory location, per normalization unit. MAX wrapper prevents negative
-      values due to multi-run counter collection variance.
+      data from any memory location, per normalization unit.
     Read (Uncached): The total number of L2 requests to Infinity Fabric to read uncached
       data from any memory location, per normalization unit. 64B requests for uncached
       data are counted as two 32B uncached data requests.
@@ -158,7 +157,7 @@ Panel Config:
       traffic, divided by total duration.
     Write and Atomic (32B): The total number of L2 requests to Infinity Fabric to
       write or atomically update 32B of data to any memory location, per normalization
-      unit. MAX wrapper prevents negative values due to multi-run counter collection variance.
+      unit.
     Write and Atomic (Uncached): The total number of L2 requests to Infinity Fabric
       to write or atomically update 32B or 64B of uncached data, per normalization
       unit.
@@ -514,9 +513,12 @@ Panel Config:
           max: MAX((TCC_EA0_RDREQ_32B_sum / $denom))
           unit: (Req  + $normUnit)
         Read (64B):
-          avg: AVG((MAX((TCC_EA0_RDREQ_sum - TCC_BUBBLE_sum - TCC_EA0_RDREQ_32B_sum), 0) / $denom))
-          min: MIN((MAX((TCC_EA0_RDREQ_sum - TCC_BUBBLE_sum - TCC_EA0_RDREQ_32B_sum), 0) / $denom))
-          max: MAX((MAX((TCC_EA0_RDREQ_sum - TCC_BUBBLE_sum - TCC_EA0_RDREQ_32B_sum), 0) / $denom))
+          avg: AVG((MAX((TCC_EA0_RDREQ_sum - TCC_BUBBLE_sum - TCC_EA0_RDREQ_32B_sum),
+            0) / $denom))
+          min: MIN((MAX((TCC_EA0_RDREQ_sum - TCC_BUBBLE_sum - TCC_EA0_RDREQ_32B_sum),
+            0) / $denom))
+          max: MAX((MAX((TCC_EA0_RDREQ_sum - TCC_BUBBLE_sum - TCC_EA0_RDREQ_32B_sum),
+            0) / $denom))
           unit: (Req  + $normUnit)
         Read (128B):
           avg: AVG(((TCC_BUBBLE_sum) / $denom))
