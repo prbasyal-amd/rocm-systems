@@ -360,14 +360,6 @@ class RocProfCompute_Base:
         console_log("Kernel Selection: " + str(self.__args.kernel))
         console_log("Dispatch Selection: " + str(self.__args.dispatch))
 
-        if self.get_args().set_selected:
-            console_log("Set Selection: " + str(self.__args.set_selected))
-
-        if self.get_args().filter_blocks is None:
-            console_log("Report Sections: All")
-        else:
-            console_log("Report Sections: " + str(self.get_args().filter_blocks))
-
         msg = "Collecting Performance Counters"
         (
             print_status(msg)

@@ -280,39 +280,52 @@ class OmniSoC_Base:
         Parse analysis report configuration files based on the selected report
         sections to be filtered.
         """
-        # Read the analysis config files and filter
-        config_root_dir = f"{self.get_args().config_dir}/{self.__arch}"
+        args = self.get_args()
+
         # File id dict
+        config_root_dir = f"{args.config_dir}/{self.__arch}"
         config_filename_dict = {
             Path(filename).name.split("_")[0]: filename
             for filename in glob.glob(f"{config_root_dir}/*.yaml")
         }
 
-        texts = list()
+        if sum((
+            args.filter_blocks,
+            args.set_selected,
+            args.roof_only
+        )) > 1:
+            console_error(
+                "--block, --set, and --roof-only are mutually exclusive options. "
+                "Please use only one of them."
+            )
 
-        set_selected = self.get_args().set_selected
-
-        if set_selected:
-            # NOTE: --blocks and --set are mutually exclusive
-            if self.get_args().filter_blocks:
-                console_error("--block and --set are exclusive options.")
-
+        filter_blocks = []
+        if args.filter_blocks:
+            filter_blocks = args.filter_blocks
+        elif args.set_selected:
             sets_info = parse_sets_yaml(self.__arch)
-            if set_selected not in set(sets_info.keys()):
+            if args.set_selected not in set(sets_info.keys()):
                 console_error(
-                    f"argument --set: invalid choice: '{set_selected}' (choose from {sets_info.keys()})"
+                    f"argument --set: invalid choice: '{args.set_selected}' (choose from {sets_info.keys()})"
                 )
-            self.__args.filter_blocks = [
+            filter_blocks = [
                 next(iter(metric.keys()))
-                for metric in sets_info[set_selected]["metric"]
+                for metric in sets_info[args.set_selected]["metric"]
             ]
+        elif args.roof_only:
+            filter_blocks = ["4"]
 
-        if not self.get_args().filter_blocks:
+        texts = list()
+        if filter_blocks:
+            console_log("Filtered sections: " + str(filter_blocks))
+        else:
+            console_log("Filtered sections: All")
+            # Select all sections by default
             for filename in config_filename_dict.values():
                 with open(filename, "r") as stream:
                     texts.append(stream.read())
 
-        for block_id in self.get_args().filter_blocks:
+        for block_id in filter_blocks:
             file_id, panel_id, metric_id = convert_metric_id_to_panel_info(block_id)
 
             # File id filtering
@@ -385,31 +398,9 @@ class OmniSoC_Base:
         return counters
 
     @demarcate
-    def perfmon_filter(self, roofline_perfmon_only: bool):
+    def perfmon_filter(self):
         """Filter default performance counter set based on user arguments"""
-        if (
-            roofline_perfmon_only
-            and Path(self.get_args().path).joinpath("pmc_perf.csv").is_file()
-        ):
-            return
-
-        if roofline_perfmon_only:
-            counters = set()
-            for fname in glob.glob(self.__perfmon_dir + "/" + "pmc_roof_perf.txt"):
-                lines = open(fname, "r").read().splitlines()
-                for line in lines:
-                    # Strip all comments, skip empty lines
-                    stext = line.split("#")[0].strip()
-                    if not stext:
-                        continue
-                    # all pmc counters start with  "pmc:"
-                    m = re.match(r"^pmc:(.*)", stext)
-                    if m is None:
-                        continue
-                    # de-duplicate counters
-                    counters = counters.union(set(m.group(1).split()))
-        else:
-            counters = self.detect_counters()
+        counters = self.detect_counters()
 
         if not using_v3():
             # Counters not supported in rocprof v1 / v2
