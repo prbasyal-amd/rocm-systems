@@ -331,6 +331,9 @@ hipError_t ihipCreateTextureObject(hipTextureObject_t* pTexObject, const hipReso
       break;
     }
     case hipResourceTypePitch2D: {
+    if ((pResDesc->res.pitch2D.width == 0) || (pResDesc->res.pitch2D.height == 0)) {
+      return hipSuccess;
+    }
       const cl_channel_order channelOrder =
           hip::getCLChannelOrder(hip::getNumChannels(pResDesc->res.pitch2D.desc), pTexDesc->sRGB);
       const cl_channel_type channelType = hip::getCLChannelType(
