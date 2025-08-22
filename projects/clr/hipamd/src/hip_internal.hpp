@@ -243,19 +243,6 @@ const char* ihipGetErrorName(hipError_t hip_error);
     return hipErrorStreamCaptureImplicit;                                                          \
   }
 
-#define STREAM_CAPTURE(name, stream, ...)                                                          \
-  hip::getStreamPerThread(stream);                                                                 \
-  if (stream != nullptr && stream != hipStreamLegacy &&                                            \
-      reinterpret_cast<hip::Stream*>(stream)->GetCaptureStatus() ==                                \
-          hipStreamCaptureStatusActive) {                                                          \
-    hipError_t status = hip::capture##name(stream, ##__VA_ARGS__);                                 \
-    return status;                                                                                 \
-  } else if (stream != nullptr && stream != hipStreamLegacy &&                                     \
-             reinterpret_cast<hip::Stream*>(stream)->GetCaptureStatus() ==                         \
-                 hipStreamCaptureStatusInvalidated) {                                              \
-    return hipErrorStreamCaptureInvalidated;                                                       \
-  }
-
 #define PER_THREAD_DEFAULT_STREAM(stream)                                                          \
   if (stream == nullptr || stream == hipStreamLegacy) {                                            \
     stream = getPerThreadDefaultStream();                                                          \
@@ -662,6 +649,17 @@ extern void WaitThenDecrementSignal(hipStream_t stream, hipError_t status, void*
 extern std::vector<hip::Device*> g_devices;
 extern hipError_t ihipDeviceGetCount(int* count);
 extern int ihipGetDevice();
+
+template<typename CaptureFunc, typename... Args>
+  hipError_t StreamCapture(CaptureFunc&& captureFunc, hipStream_t stream, Args&&... args) {
+  hipError_t status = hipSuccess;
+  if (reinterpret_cast<hip::Stream*>(stream)->GetCaptureStatus() == hipStreamCaptureStatusActive) {
+    status = captureFunc(stream, std::forward<Args>(args)...);
+  } else if (reinterpret_cast<hip::Stream*>(stream)->GetCaptureStatus() == hipStreamCaptureStatusInvalidated) {
+    status = hipErrorStreamCaptureInvalidated;
+  }
+  return status;
+}
 
 extern hipError_t ihipMalloc(void** ptr, size_t sizeBytes, unsigned int flags);
 extern hipError_t ihipHostMalloc(void** ptr, size_t sizeBytes, unsigned int flags);
