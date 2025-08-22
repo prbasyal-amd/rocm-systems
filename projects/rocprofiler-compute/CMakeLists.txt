@@ -34,8 +34,10 @@ project(
         "A kernel-level profiling tool for machine learning/HPC workloads running on AMD MI GPUs"
     HOMEPAGE_URL "https://github.com/ROCm/rocprofiler-compute")
 
-set(BUILD_TESTS_ONLY FALSE CACHE BOOL "Build only CTest")
-if (${BUILD_TESTS_ONLY})
+set(BUILD_TESTS_ONLY
+    FALSE
+    CACHE BOOL "Build only CTest")
+if(${BUILD_TESTS_ONLY})
     set(PACKAGE_NAME "rocprofiler-compute-tests")
     set(PACKAGE_NAME_UNDERSCORE "rocprofiler_compute_tests")
     set(EXECUTABLE_NAME "rocprof-compute-tests")
@@ -57,7 +59,7 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 message(STATUS "Git revision: ${ROCPROFCOMPUTE_GIT_REV}")
 configure_file(${PROJECT_SOURCE_DIR}/cmake/VERSION.sha.in
-                ${PROJECT_SOURCE_DIR}/VERSION.sha @ONLY)
+               ${PROJECT_SOURCE_DIR}/VERSION.sha @ONLY)
 
 set(CMAKE_BUILD_TYPE "Release")
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -144,7 +146,7 @@ endif()
 # ----------------------
 # modulefile creation
 # ----------------------
-if (NOT BUILD_TESTS_ONLY)
+if(NOT BUILD_TESTS_ONLY)
     set(MOD_INSTALL_PATH
         "${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME}/modulefiles/${PROJECT_NAME}"
         CACHE STRING "Install path for modulefile")
@@ -154,7 +156,8 @@ if (NOT BUILD_TESTS_ONLY)
 
     configure_file(
         ${PROJECT_SOURCE_DIR}/cmake/${moduleFileTemplate}
-        ${PROJECT_BINARY_DIR}/${MOD_INSTALL_PATH}/${ROCPROFCOMPUTE_FULL_VERSION}.lua @ONLY)
+        ${PROJECT_BINARY_DIR}/${MOD_INSTALL_PATH}/${ROCPROFCOMPUTE_FULL_VERSION}.lua
+        @ONLY)
 
     # Thera mods
     if(LOCALHOST MATCHES "TheraS01|.*\.thera\.amd\.com|thera-hn")
@@ -162,8 +165,8 @@ if (NOT BUILD_TESTS_ONLY)
         message(STATUS "Using thera-specific modulefile modification")
         file(READ ${PROJECT_SOURCE_DIR}/cmake/modfile.thera.mod mod_additions)
         file(APPEND
-            ${PROJECT_BINARY_DIR}/${MOD_INSTALL_PATH}/${ROCPROFCOMPUTE_FULL_VERSION}.lua
-            ${mod_additions})
+             ${PROJECT_BINARY_DIR}/${MOD_INSTALL_PATH}/${ROCPROFCOMPUTE_FULL_VERSION}.lua
+             ${mod_additions})
         list(POP_BACK CMAKE_MESSAGE_INDENT)
     endif()
 endif()
@@ -357,7 +360,7 @@ add_test(
 # ---------
 # Install
 # ---------
-if (NOT BUILD_TESTS_ONLY)
+if(NOT BUILD_TESTS_ONLY)
     # top-level rocprofiler-compute utility
     install(
         PROGRAMS src/${EXECUTABLE_NAME}
@@ -371,7 +374,7 @@ if (NOT BUILD_TESTS_ONLY)
     # support files and version info
     install(
         FILES src/argparser.py src/config.py src/rocprof_compute_base.py src/roofline.py
-            VERSION VERSION.sha
+              VERSION VERSION.sha
         DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/${PROJECT_NAME}
         COMPONENT main)
     # src/rocprof_compute_analyze
@@ -446,8 +449,9 @@ if (NOT BUILD_TESTS_ONLY)
     add_custom_target(
         license
         COMMAND
-            ${PROJECT_SOURCE_DIR}/utils/update_license.py --source ${PROJECT_SOURCE_DIR}/src
-            --license ${PROJECT_SOURCE_DIR}/LICENSE --extension '.py'
+            ${PROJECT_SOURCE_DIR}/utils/update_license.py --source
+            ${PROJECT_SOURCE_DIR}/src --license ${PROJECT_SOURCE_DIR}/LICENSE --extension
+            '.py'
         COMMAND
             ${PROJECT_SOURCE_DIR}/utils/update_license.py --source ${PROJECT_SOURCE_DIR}
             --license ${PROJECT_SOURCE_DIR}/LICENSE --file
@@ -466,11 +470,13 @@ if (NOT BUILD_TESTS_ONLY)
         # Create VERSION.sha file
         COMMAND git -C ${PROJECT_SOURCE_DIR} rev-parse HEAD > VERSION.sha
         # Build standalone binary
-        # NOTE: --no-deployment-flag=self-execution is used to avoid self-execution and fork
+        # NOTE: --no-deployment-flag=self-execution is used to avoid self-execution and
+        # fork
         # bombs as explained in
         # https://nuitka.net/user-documentation/common-issue-solutions.html#fork-bombs-self-execution
         COMMAND
-            ${Python3_EXECUTABLE} -m nuitka --mode=onefile --no-deployment-flag=self-execution
+            ${Python3_EXECUTABLE} -m nuitka --mode=onefile
+            --no-deployment-flag=self-execution
             --include-data-files=${PROJECT_SOURCE_DIR}/VERSION*=./ --enable-plugin=no-qt
             --include-package=dash_svg --include-package-data=dash_svg
             --include-package=dash_bootstrap_components
@@ -478,8 +484,9 @@ if (NOT BUILD_TESTS_ONLY)
             --include-package-data=plotly --include-package=kaleido
             --include-package-data=kaleido --include-package=rocprof_compute_analyze
             --include-package-data=rocprof_compute_analyze
-            --include-package=rocprof_compute_soc --include-package-data=rocprof_compute_soc
-            --include-package=utils --include-package-data=utils rocprof-compute
+            --include-package=rocprof_compute_soc
+            --include-package-data=rocprof_compute_soc --include-package=utils
+            --include-package-data=utils rocprof-compute
         # Remove library rpath from executable
         COMMAND patchelf --remove-rpath rocprof-compute.bin
         # Move to build directory
@@ -538,14 +545,14 @@ message(STATUS "Packaging config...")
 set(CPACK_GENERATOR
     "DEB" "RPM"
     CACHE STRING "")
-if (BUILD_TESTS_ONLY)
+if(BUILD_TESTS_ONLY)
     set(CPACK_PACKAGE_NAME
-    "${PROJECT_NAME}-tests"
-    CACHE STRING "")
+        "${PROJECT_NAME}-tests"
+        CACHE STRING "")
 else()
     set(CPACK_PACKAGE_NAME
-    "${PROJECT_NAME}"
-    CACHE STRING "")
+        "${PROJECT_NAME}"
+        CACHE STRING "")
 endif()
 set(CPACK_PACKAGE_CONTACT "https://github.com/ROCm/rocprofiler-compute")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
@@ -586,7 +593,7 @@ set(PACKAGE_REQUIRES
 set(CPACK_RPM_PACKAGE_REQUIRES ${PACKAGE_REQUIRES})
 set(CPACK_DEBIAN_PACKAGE_DEPENDS ${PACKAGE_REQUIRES})
 
-if (NOT BUILD_TESTS_ONLY)
+if(NOT BUILD_TESTS_ONLY)
     # Handle the project rebranding from omniperf to rocprofiler-compute
     set(OMNIPERF_PACKAGE_NAME "omniperf")
     set(CPACK_RPM_PACKAGE_PROVIDES ${OMNIPERF_PACKAGE_NAME})
