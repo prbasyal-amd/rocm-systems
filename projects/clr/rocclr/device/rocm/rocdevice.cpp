@@ -2218,12 +2218,12 @@ void Device::releaseMemory(void* ptr, size_t size) const {
   }
 }
 
-void* Device::deviceLocalAlloc(size_t size, bool atomics, bool pseudo_fine_grain,
-                               bool contiguous) const {
+void* Device::deviceLocalAlloc(size_t size, const DeviceLocalAllocFlags& flags) const {
   const hsa_amd_memory_pool_t& pool =
-      (pseudo_fine_grain && gpu_ext_fine_grained_segment_.handle) ? gpu_ext_fine_grained_segment_
-      : (atomics && gpu_fine_grained_segment_.handle)             ? gpu_fine_grained_segment_
-                                                                  : gpuvm_segment_;
+      (flags.pseudo_fine_grain_ && gpu_ext_fine_grained_segment_.handle)
+          ? gpu_ext_fine_grained_segment_
+      : (flags.atomics_ && gpu_fine_grained_segment_.handle) ? gpu_fine_grained_segment_
+                                                             : gpuvm_segment_;
 
   if (pool.handle == 0 || gpuvm_segment_max_alloc_ == 0) {
     DevLogPrintfError("Invalid argument, pool_handle: 0x%x , max_alloc: %u \n", pool.handle,
@@ -2232,8 +2232,11 @@ void* Device::deviceLocalAlloc(size_t size, bool atomics, bool pseudo_fine_grain
   }
 
   uint32_t hsa_mem_flags = 0;
-  if (contiguous) {
+  if (flags.contiguous_) {
     hsa_mem_flags = HSA_AMD_MEMORY_POOL_CONTIGUOUS_FLAG;
+  }
+  if (flags.executable_) {
+    hsa_mem_flags |= HSA_AMD_MEMORY_POOL_EXECUTABLE_FLAG;
   }
 
   void* ptr = nullptr;

@@ -422,8 +422,9 @@ class Device : public NullDevice {
   bool allowPeerAccess(device::Memory* memory) const;
   void deviceVmemRelease(uint64_t mem_handle) const;
   uint64_t deviceVmemAlloc(size_t size, uint64_t flags) const;
-  void* deviceLocalAlloc(size_t size, bool atomics = false, bool pseudo_fine_grain = false,
-                         bool contiguous = false) const;
+
+  void* deviceLocalAlloc(size_t size,
+                         const DeviceLocalAllocFlags& flags = DeviceLocalAllocFlags{}) const;
   void* reserveMemory(size_t size, size_t alignment) const;
   void releaseMemory(void* ptr, size_t size) const;
   void memFree(void* ptr, size_t size) const;
