@@ -58,6 +58,16 @@ For manual testing, you can find the executable at `install/bin/rocprof-compute`
 
 NOTE: This Dockerfile uses `ubuntu 22.04` as the base operating system image
 
+### Using the standalone test suite
+
+To verify your installation using the standalone test suite, run:
+
+```shell
+cmake -B build -D CMAKE_INSTALL_PREFIX=install -D BUILD_TESTS_ONLY=ON -D INSTALL_TESTS=ON -DENABLE_COVERAGE=ON -S .
+cmake --build build --target install --parallel 8
+ctest --test-dir install/libexec/rocprofiler-compute-tests
+```
+
 ## Standalone binary
 
 To create a standalone binary, run the following commands:
