@@ -2578,8 +2578,10 @@ bool Device::GetSvmAttributes(void** data, size_t* data_sizes, int* attributes,
       if (status != HSA_STATUS_SUCCESS) {
         LogError("hsa_amd_pointer_info() failed");
       }
+      *reinterpret_cast<int32_t*>(data[i]) = -1;
       // Check if it's a legacy non-HMM allocation and update query
-      if (ptr_info.type != HSA_EXT_POINTER_TYPE_UNKNOWN) {
+      if (ptr_info.type == HSA_EXT_POINTER_TYPE_HSA || ptr_info.type == HSA_EXT_POINTER_TYPE_LOCKED ||
+        ptr_info.type == HSA_EXT_POINTER_TYPE_IPC) {
         if (ptr_info.global_flags & HSA_AMD_MEMORY_POOL_GLOBAL_FLAG_COARSE_GRAINED) {
           *reinterpret_cast<uint32_t*>(data[i]) = HSA_AMD_SVM_GLOBAL_FLAG_COARSE_GRAINED;
         } else if (ptr_info.global_flags & HSA_AMD_MEMORY_POOL_GLOBAL_FLAG_FINE_GRAINED) {
@@ -2617,7 +2619,7 @@ bool Device::GetSvmAttributes(void** data, size_t* data_sizes, int* attributes,
           attr.push_back({HSA_AMD_SVM_ATTRIB_PREFETCH_LOCATION, 0});
           break;
         case amd::MemRangeAttribute::CoherencyMode:
-          if (ptr_info.type == HSA_EXT_POINTER_TYPE_UNKNOWN) {
+          if (*reinterpret_cast<int32_t*>(data[i]) == -1) {
             attr.push_back({HSA_AMD_SVM_ATTRIB_GLOBAL_FLAG, 0});
           }
           break;
@@ -2721,7 +2723,7 @@ bool Device::GetSvmAttributes(void** data, size_t* data_sizes, int* attributes,
             return false;
           }
           // if ptr is HMM alloc then overwrite the values
-          if (ptr_info.type == HSA_EXT_POINTER_TYPE_UNKNOWN) {
+          if (*reinterpret_cast<int32_t*>(data[i]) == -1) {
             // Cast ROCr value into the hip format
             *reinterpret_cast<uint32_t*>(data[idx]) = static_cast<uint32_t>(it.value);
           }
@@ -2734,7 +2736,7 @@ bool Device::GetSvmAttributes(void** data, size_t* data_sizes, int* attributes,
       // Find the next location in the query
       ++idx;
     }
-  } else if (ptr_info.type == HSA_EXT_POINTER_TYPE_UNKNOWN) {
+  } else if (ptr_info.type == HSA_EXT_POINTER_TYPE_RESERVED_ADDR) {
     LogError("GetSvmAttributes() failed, because no HMM support");
     return false;
   }
