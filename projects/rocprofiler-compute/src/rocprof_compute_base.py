@@ -192,13 +192,13 @@ class RocProfCompute:
             elif self.__args.list_metrics:
                 self.list_metrics()
                 sys.exit(0)
-            elif self.__args.list_supported_metrics:
+            elif self.__args.query_metrics:
                 self.list_metrics(True)
                 sys.exit(0)
             elif self.__args.config_dir:
                 parser.print_help(sys.stderr)
                 console_error(
-                    "rocprof-compute requires you to pass --list-metrics or --list-suported-metrics with --config-path."
+                    "rocprof-compute requires you to pass --list-metrics or --query-metrics with --config-dir."
                 )
             parser.print_help(sys.stderr)
             console_error(
@@ -235,8 +235,10 @@ class RocProfCompute:
 
     @demarcate
     def list_metrics(self, for_current_arch=False):
-        if for_current_arch:
-            self.load_soc_specs()
+        self.load_soc_specs()
+
+        if self.__mspec.gpu_arch == self.__args.list_metrics:
+            for_current_arch = True
 
         arch = self.__mspec.gpu_arch if for_current_arch else self.__args.list_metrics
         if arch in self.__supported_archs.keys():
@@ -253,8 +255,14 @@ class RocProfCompute:
             parser.build_dfs(archConfigs=ac, filter_metrics=[], sys_info=sys_info)
 
             pattern = r"(\d+)(?:\.(\d+))?(?:\.(\d+))?"
-            filtered_metrics = [re.fullmatch(pattern, metric) for metric in self.__args.filter_blocks]
-            filtered_metrics = {metric.group(1): metric.group(2) for metric in filtered_metrics if metric is not None}
+            filtered_metrics = [
+                re.fullmatch(pattern, metric) for metric in self.__args.filter_blocks
+            ]
+            filtered_metrics = {
+                metric.group(1): metric.group(2)
+                for metric in filtered_metrics
+                if metric is not None
+            }
 
             for key, value in ac.metric_list.items():
                 block = re.fullmatch(pattern, key)
@@ -264,7 +272,11 @@ class RocProfCompute:
                 if filtered_metrics:
                     if top_level not in filtered_metrics.keys():
                         continue
-                    if filtered_metrics.get(top_level) and second_level and second_level != filtered_metrics.get(top_level):
+                    if (
+                        filtered_metrics.get(top_level)
+                        and second_level
+                        and second_level != filtered_metrics.get(top_level)
+                    ):
                         continue
 
                 prefix = ""

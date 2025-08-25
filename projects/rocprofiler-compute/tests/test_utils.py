@@ -9343,7 +9343,7 @@ def test_list_metrics_with_filter_blocks(
     binary_handler_analyze_rocprof_compute, capsys
 ):
     return_code = binary_handler_analyze_rocprof_compute(
-        ['--list-metrics', 'gfx90a', '--filter-blocks', '2.1']
+        ['--list-metrics', 'gfx90a', '--block', '2.1']
     )
     assert return_code == 0
 
@@ -9354,7 +9354,7 @@ def test_list_metrics_with_filter_blocks(
     assert "15.2 -> Instruction counts" not in output
 
     return_code = binary_handler_analyze_rocprof_compute(
-        ['--list-metrics', 'gfx90a', '--filter-blocks', '7.1', '3']
+        ['--list-metrics', 'gfx90a', '--block', '7.1', '3']
     )
     assert return_code == 0
 
@@ -9369,10 +9369,10 @@ def test_list_metrics_with_filter_blocks(
     assert "14 -> Scalar L1 Data Cache" not in output
 
 
-def test_supported_metrics(
+def test_query_metrics(
     binary_handler_analyze_rocprof_compute, capsys
 ):
-    return_code = binary_handler_analyze_rocprof_compute(['--list-supported-metrics'])
+    return_code = binary_handler_analyze_rocprof_compute(['--query-metrics'])
     assert return_code == 0
 
     # Test output
@@ -9385,7 +9385,7 @@ def test_supported_metrics_with_filter_blocks(
     binary_handler_analyze_rocprof_compute, capsys
 ):
     return_code = binary_handler_analyze_rocprof_compute(
-        ['--list-supported-metrics', '--filter-blocks', '2']
+        ['--query-metrics', '--block', '2']
     )
     assert return_code == 0
 
@@ -9396,7 +9396,7 @@ def test_supported_metrics_with_filter_blocks(
     assert "2 ->" in output
 
     return_code = binary_handler_analyze_rocprof_compute(
-        ['--list-supported-metrics', '--filter-blocks', '3', '7.1']
+        ['--query-metrics', '--block', '3', '7.1']
     )
     assert return_code == 0
 

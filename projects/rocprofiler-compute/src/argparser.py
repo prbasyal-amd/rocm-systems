@@ -37,14 +37,16 @@ def print_avail_arch(avail_arch: list):
 
 
 def validate_block(value):
-        # Metric id is of the form I or I.I or I.I.I where I is two digit number.
-        metric_id_pattern = re.compile(r"^\d{1,2}(?:\.\d{1,2}){0,2}$")
-        if metric_id_pattern.match(value):
-            return value
-        raise argparse.ArgumentTypeError(f"Invalid metric id: {value}")
+    # Metric id is of the form I or I.I or I.I.I where I is two digit number.
+    metric_id_pattern = re.compile(r"^\d{1,2}(?:\.\d{1,2}){0,2}$")
+    if metric_id_pattern.match(value):
+        return value
+    raise argparse.ArgumentTypeError(f"Invalid metric id: {value}")
 
 
-def add_general_group(parser, rocprof_compute_version, supported_archs, rocprof_compute_home):
+def add_general_group(
+    parser, rocprof_compute_version, supported_archs, rocprof_compute_home
+):
     general_group = parser.add_argument_group("General Options")
 
     general_group.add_argument(
@@ -77,19 +79,28 @@ def add_general_group(parser, rocprof_compute_version, supported_archs, rocprof_
         default=rocprof_compute_home.joinpath("rocprof_compute_soc/analysis_configs/"),
     )
     general_group.add_argument(
-        "--list-supported-metrics",
+        "--query-metrics",
         help="List all available metrics for the current architecture.",
         action="count",
         default=0,
     )
     general_group.add_argument(
-        "--filter-blocks",
+        "-b",
+        "--block",
         type=validate_block,
+        dest="filter_blocks",
         metavar="",
         nargs="+",
         required=False,
         default=[],
         help="""Specify metric id(s) from --list-metrics or --list-supported-metrics for filtering (e.g. 12, 12.1, 12.1.1).\nCan provide multiple space separated arguments.""",
+    )
+    general_group.add_argument(
+        "--config-dir",
+        dest="config_dir",
+        metavar="",
+        help="Specify the directory of customized report section configs.",
+        default=rocprof_compute_home.joinpath("rocprof_compute_soc/analysis_configs/"),
     )
     # Nowhere to load specs from in db mode
     if "database" not in parser.usage:
@@ -107,7 +118,9 @@ def omniarg_parser(
 
     ## General Command Line Options
     ## ----------------------------
-    add_general_group(parser, rocprof_compute_version, supported_archs, rocprof_compute_home)
+    add_general_group(
+        parser, rocprof_compute_version, supported_archs, rocprof_compute_home
+    )
     parser._positionals.title = "Modes"
     parser._optionals.title = "Help"
 
@@ -142,7 +155,9 @@ Examples:
     )
     profile_parser._optionals.title = "Help"
 
-    add_general_group(profile_parser, rocprof_compute_version, supported_archs, rocprof_compute_home)
+    add_general_group(
+        profile_parser, rocprof_compute_version, supported_archs, rocprof_compute_home
+    )
     profile_group = profile_parser.add_argument_group("Profile Options")
     roofline_group = profile_parser.add_argument_group("Standalone Roofline Options")
 
@@ -224,22 +239,6 @@ Examples:
     )
 
     profile_group.add_argument(
-        "-b",
-        "--block",
-        type=validate_block,
-        dest="filter_blocks",
-        metavar="",
-        nargs="+",
-        required=False,
-        default=[],
-        help=(
-            "\t\t\tSpecify metric id(s) from --list-metrics for filtering "
-            "(e.g. 12, 12.1, 12.1.1).\n"
-            "\t\t\tCan provide multiple space separated arguments."
-        ),
-    )
-
-    profile_group.add_argument(
         "--list-sets",
         action="store_true",
         help="\t\t\tDisplay available metric sets and their descriptions",
@@ -252,13 +251,6 @@ Examples:
         "counters in a single pass.\n\t\t\tFor available sets, see --list-sets",
     )
 
-    profile_group.add_argument(
-        "--config-dir",
-        dest="config_dir",
-        metavar="",
-        help="\t\t\tSpecify the directory of customized report section configs.",
-        default=rocprof_compute_home.joinpath("rocprof_compute_soc/analysis_configs/"),
-    )
     profile_group.add_argument(
         "--join-type",
         metavar="",
@@ -485,7 +477,9 @@ Examples:
     )
     db_parser._optionals.title = "Help"
 
-    add_general_group(db_parser, rocprof_compute_version, supported_archs, rocprof_compute_home)
+    add_general_group(
+        db_parser, rocprof_compute_version, supported_archs, rocprof_compute_home
+    )
     interaction_group = db_parser.add_argument_group("Interaction Type")
     connection_group = db_parser.add_argument_group("Connection Options")
 
@@ -585,7 +579,9 @@ Examples:
     )
     analyze_parser._optionals.title = "Help"
 
-    add_general_group(analyze_parser, rocprof_compute_version, supported_archs, rocprof_compute_home)
+    add_general_group(
+        analyze_parser, rocprof_compute_version, supported_archs, rocprof_compute_home
+    )
     analyze_group = analyze_parser.add_argument_group("Analyze Options")
     analyze_advanced_group = analyze_parser.add_argument_group("Advanced Options")
 
@@ -622,14 +618,6 @@ Examples:
         nargs="+",
         action="append",
         help="\t\tSpecify dispatch id(s) for filtering.",
-    )
-    analyze_group.add_argument(
-        "-b",
-        "--block",
-        dest="filter_metrics",
-        metavar="",
-        nargs="+",
-        help="\t\tSpecify metric id(s) from --list-metrics for filtering.",
     )
     analyze_group.add_argument(
         "--gpu-id",
@@ -762,13 +750,6 @@ Examples:
         metavar="",
         default=2,
         help="\t\tSpecify desired decimal precision of analysis results. (DEFAULT: 2)",
-    )
-    analyze_advanced_group.add_argument(
-        "--config-dir",
-        dest="config_dir",
-        metavar="",
-        help="\t\tSpecify the directory of customized configs.",
-        default=rocprof_compute_home.joinpath("rocprof_compute_soc/analysis_configs/"),
     )
     analyze_advanced_group.add_argument(
         "--save-dfs",
