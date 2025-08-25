@@ -206,7 +206,6 @@ class RocProfCompute_Base:
                 if not any(
                     k.startswith(check)
                     for check in [
-                        # rocprofv2 headers
                         "GPU_ID_",
                         "Grid_Size_",
                         "Workgroup_Size_",
