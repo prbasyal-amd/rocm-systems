@@ -762,14 +762,7 @@ rocprofsys_finalize_hidden(void)
                                                       std::to_string(getppid()) + "_" +
                                                       std::to_string(getpid()) + ".json");
         _manager.shutdown();
-        _manager.post_process();
 
-#if ROCPROFSYS_USE_ROCM > 0
-        if(get_use_rocpd())
-        {
-            rocpd::data_processor::get_instance().flush();
-        }
-#endif
         set_state(State::Finalized);
         std::quick_exit(EXIT_SUCCESS);
         return;
@@ -873,7 +866,7 @@ rocprofsys_finalize_hidden(void)
     {
         auto& _manager = rocprofsys::trace_cache::cache_manager::get_instance();
         _manager.shutdown();
-        _manager.post_process();
+        _manager.post_process_bulk();
     }
 
     ROCPROFSYS_DEBUG_F("Stopping and destroying instrumentation bundles...\n");
@@ -1066,12 +1059,6 @@ rocprofsys_finalize_hidden(void)
         [](int) {});
 
     common::destroy_static_objects();
-#if ROCPROFSYS_USE_ROCM > 0
-    if(get_use_rocpd())
-    {
-        rocpd::data_processor::get_instance().flush();
-    }
-#endif
 }
 
 //======================================================================================//
