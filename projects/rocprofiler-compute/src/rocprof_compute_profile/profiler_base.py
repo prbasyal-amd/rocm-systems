@@ -437,10 +437,7 @@ class RocProfCompute_Base:
             console_log("profiling", "Current input file: %s" % fname)
 
             options = self.get_profiler_options(fname, self._soc)
-            if (
-                self.__profiler == "rocprofv3"
-                or self.__profiler == "rocprofiler-sdk"
-            ):
+            if self.__profiler == "rocprofv3" or self.__profiler == "rocprofiler-sdk":
                 start_run_prof = time.time()
                 run_prof(
                     fname=fname,

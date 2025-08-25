@@ -37,7 +37,6 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path as path
-from typing import Optional
 
 import pandas as pd
 import yaml
@@ -51,7 +50,6 @@ from utils.logger import (
     console_warning,
     demarcate,
 )
-from utils.mi_gpu_spec import mi_gpu_specs
 
 rocprof_cmd = ""
 rocprof_args = ""
@@ -686,7 +684,7 @@ def run_prof(
         config.rocprof_compute_home
         / "rocprof_compute_soc"
         / "profile_configs"
-        / f"counter_defs.yaml",
+        / "counter_defs.yaml",
         "r",
     ) as file:
         counter_defs = yaml.safe_load(file)
@@ -764,22 +762,22 @@ def run_prof(
     results_files = []
 
     if format_rocprof_output == "rocpd":
-            # Write results_fbase.csv
-            rocpd_data.convert_db_to_csv(
+        # Write results_fbase.csv
+        rocpd_data.convert_db_to_csv(
+            glob.glob(workload_dir + "/out/pmc_1/*/*.db")[0],
+            workload_dir + f"/results_{fbase}.csv",
+        )
+        if retain_rocpd_output:
+            shutil.copyfile(
                 glob.glob(workload_dir + "/out/pmc_1/*/*.db")[0],
-                workload_dir + f"/results_{fbase}.csv",
+                workload_dir + "/" + fbase + ".db",
             )
-            if retain_rocpd_output:
-                shutil.copyfile(
-                    glob.glob(workload_dir + "/out/pmc_1/*/*.db")[0],
-                    workload_dir + "/" + fbase + ".db",
-                )
-                console_warning(
-                    f"Retaining large raw rocpd database: {workload_dir}/{fbase}.db"
-                )
-            # Remove temp directory
-            shutil.rmtree(workload_dir + "/" + "out")
-            return
+            console_warning(
+                f"Retaining large raw rocpd database: {workload_dir}/{fbase}.db"
+            )
+        # Remove temp directory
+        shutil.rmtree(workload_dir + "/" + "out")
+        return
 
     # rocprofv3 requires additional processing for each process
     results_files = process_rocprofv3_output(

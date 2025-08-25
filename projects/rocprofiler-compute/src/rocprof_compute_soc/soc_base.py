@@ -486,8 +486,7 @@ class OmniSoC_Base:
         )
         sys.path.append(
             str(
-                Path(self.get_args().rocprofiler_sdk_library_path).parent.parent
-                / "bin"
+                Path(self.get_args().rocprofiler_sdk_library_path).parent.parent / "bin"
             )
         )
         from rocprofv3_avail_module import avail

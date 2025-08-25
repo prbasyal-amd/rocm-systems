@@ -367,6 +367,7 @@ os.environ["ROCPROF"] = "rocprofiler-sdk"
 
 Baseline_dir = str(Path("tests/workloads/vcopy/" + soc).resolve())
 
+
 def log_counter(file_dict, test_name):
     for file in file_dict.keys():
         if file == "pmc_perf.csv" or "SQ" in file:
