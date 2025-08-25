@@ -34,9 +34,7 @@ project(
         "A kernel-level profiling tool for machine learning/HPC workloads running on AMD MI GPUs"
     HOMEPAGE_URL "https://github.com/ROCm/rocprofiler-compute")
 
-set(BUILD_TESTS_ONLY
-    FALSE
-    CACHE BOOL "Build only CTest")
+option(BUILD_TESTS_ONLY FALSE)
 if(${BUILD_TESTS_ONLY})
     set(PACKAGE_NAME "rocprofiler-compute-tests")
     set(PACKAGE_NAME_UNDERSCORE "rocprofiler_compute_tests")
